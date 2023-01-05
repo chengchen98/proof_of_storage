@@ -1,6 +1,5 @@
-use std::{fs::File, io::Write, ops::AddAssign};
+             use std::{fs::File, io::Write, ops::AddAssign};
 use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
  
 // We're going to use the Groth16 proving system.
 use bellman::groth16::{
@@ -15,13 +14,10 @@ use rand::thread_rng;
 use crate::equal::EqualDemo;
 use crate::pow::{PowDemo, INPUT_SIZE, pow};
 use crate::convert::{bits_to_s, s_to_bits};
+use crate::data::Data;
 
 pub const Y_DIR: &str = r"D:\graduation\code\proof_of_storage\src\y_collect.json";
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Data<T> {
-    content: T
-}
 
 pub fn create_pos(key: Scalar, m_bit: [Scalar; INPUT_SIZE], n: u32) -> std::io::Result<()> {
     let base: i32 = 2;
@@ -197,8 +193,9 @@ mod test {
 
     #[test]
     fn test_proof() {
-        let n = 20;
         let mut rng = thread_rng();
+
+        let n = 10;
         let key = Scalar::random(&mut rng);
         let m = Scalar::random(&mut rng);
         let m_bit = s_to_bits(m);
@@ -228,8 +225,8 @@ mod test {
         println!("Verify 1: {:?}", start.elapsed());
 
         let start = Instant::now();
-        let (pow_pvk, pow_proof_collect, equal_pvk, equal_proof_collect, y1_collect)
-         = response_2(&x_response, &y_response, &c_response, key, m_bit, DIFFICULTY * 4);
+        let (pow_pvk, pow_proof_collect, equal_pvk, equal_proof_collect, y1_collect) 
+        = response_2(&x_response, &y_response, &c_response, key, m_bit, DIFFICULTY * 4);
         println!("Response 2: {:?}", start.elapsed());
         
         let start = Instant::now();

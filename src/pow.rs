@@ -4,6 +4,7 @@ use bellman::{Circuit, ConstraintSystem, SynthesisError};
 pub const MIMC_ROUNDS: usize = 322;
 pub const INPUT_SIZE: usize = 256;
 
+/// Prove the process of computing g\^x_bit
 pub struct PowDemo<S: PrimeField>{
     pub g: Option<S>,
     pub x_bit: [Option<S>; INPUT_SIZE],

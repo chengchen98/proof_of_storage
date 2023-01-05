@@ -4,6 +4,9 @@ use ff::PrimeField;
 pub const INPUT_SIZE: usize = 256;
 
 pub fn bits_to_s(x_bit: [Scalar; INPUT_SIZE], n: usize) -> Scalar {
+    //! Convert binary to Scalar.
+    //! 
+    //! n: only convert data\[0..n\] to Scalar
     let mut x = Scalar::zero();
     let mut two = Scalar::one();
     let base = Scalar::from_str_vartime("2").unwrap();
@@ -18,6 +21,7 @@ pub fn bits_to_s(x_bit: [Scalar; INPUT_SIZE], n: usize) -> Scalar {
 }
 
 pub fn s_to_bits(x: Scalar) -> [Scalar; INPUT_SIZE] {
+    //! Convert Scalar to binary.
     let mut x_bit = [Scalar::zero(); INPUT_SIZE];
     let x_vec = x.to_bytes();
 
@@ -34,4 +38,17 @@ pub fn s_to_bits(x: Scalar) -> [Scalar; INPUT_SIZE] {
         }
     }
     x_bit
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    
+    #[test]
+    fn test() {
+        let x = Scalar::from_str_vartime("256").unwrap();
+        let bits = s_to_bits(x);
+        let y = bits_to_s(bits, 256);
+        assert_eq!(x, y);
+    }
 }
