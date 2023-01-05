@@ -3,16 +3,50 @@ use serde::{Serialize, Deserialize};
 
 use rand::{thread_rng, Rng};
 
+pub const DATA_DIR: &str = r"D:\graduation\code\proof_of_storage\src\data.json";
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Data<T> {
-    content: T
+    pub content: T
 }
 
-pub fn padding(input: Vec<u8>, n: usize) -> Vec<u8> {
+pub fn padding(data: &Vec<u8>, n: usize) -> Vec<u8> {
     let mut res = vec![];
-    if input.len() % n != 0 {
-        res = vec![0u8; n - input.len() % n];
-        res.append(&mut input.clone());
+    if data.len() % n != 0 {
+        res = vec![0u8; n - data.len() % n];
+        res.append(&mut data.clone());
+    }
+    res
+}
+
+pub fn to_block(data: &Vec<u8>, len: usize) -> Vec<Vec<u8>> {
+    let mut data_blocks = vec![];
+    for i in (0..data.len()).step_by(len) {
+        data_blocks.push(data[i .. i + len].to_vec());
+    }
+    data_blocks
+}
+
+pub fn vecu8_xor(left: &Vec<u8>, right: &Vec<u8>) -> Vec<u8> {
+    let mut res = vec![];
+    let len_left = left.len();
+    let len_right = right.len();
+
+    if len_left > len_right {
+        for i in 0..len_right {
+            res.push(left[i] ^ right[i]);
+        }
+        for j in len_right..len_left {
+            res.push(left[j]);
+        }
+    }
+    else {
+        for i in 0..len_left {
+            res.push(left[i] ^ right[i]);
+        }
+        for j in len_left..len_right {
+            res.push(right[j]);
+        }
     }
     res
 }
@@ -59,7 +93,6 @@ pub fn read_file(dir: &str) -> Vec<u8> {
 #[cfg(test)]
 mod test {
     use super::*;
-    const DIR: &str = r"D:\graduation\code\proof_of_storage\src\data.json";
     use std::mem;
 
     #[test]
@@ -75,14 +108,32 @@ mod test {
     fn test_write() {
         let n = 256;
         let x = gen_random_str(n);
-        println!("{:?}", x);
-        write_file(&x.as_bytes().to_vec(), DIR).unwrap();
+        write_file(&x.as_bytes().to_vec(), DATA_DIR).unwrap();
     }
 
     #[test]
     fn test_read() {
-        let x = read_file(DIR);
+        let x = read_file(DATA_DIR);
         let x = String::from_utf8(x).unwrap();
         println!("{:?}", x);
+    }
+
+    #[test]
+    fn test_to_block() {
+        let data = vec![0u8; 32];
+        let n1 = 16;
+        let n2 = 4;
+        let blocks1 = to_block(&data, n1);
+        let blocks2 = blocks1.iter().map(|x| to_block(&x, n2)).collect::<Vec<Vec<Vec<_>>>>();
+        println!("{:?}", blocks2.len());
+        println!("{:?}", blocks2[0].len());
+    }
+
+    #[test]
+    fn test_vecu8_xor() {
+        let left = vec![1, 1, 1];
+        let right = vec![1, 1, 1];
+        let res = vecu8_xor(&left, &right);
+        println!("{:?}", res);
     }
 }

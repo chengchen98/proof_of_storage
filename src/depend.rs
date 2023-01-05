@@ -1,14 +1,8 @@
 pub fn long_mode_1(num: usize, index: usize, count: usize) -> Vec<usize> {
-    //! ## generate a list of long depended indexs
+    //! rule: -1-2\*0, -1-2\*1, -1-2\*2, -1-2\*3...
     //! 
-    //! num: blcok number
-    //! 
-    //! index: the index of the current block
-    //! 
-    //! count: the count of blocks
-    //! 
-    //! rule: -1-2*0, -1-2*1, -1-2*2, -1-2*3...
-    let mut long_index = Vec::new();
+    //!           -1,     -3,     -5,     -7...
+    let mut long_index = vec![];
     for i in 0..count {
         if index >= 1 + 2 * i {
             let idx = index - 1 - 2 * i;
@@ -21,10 +15,10 @@ pub fn long_mode_1(num: usize, index: usize, count: usize) -> Vec<usize> {
 }
 
 pub fn long_mode_2(num: usize, index: usize, count: usize) -> Vec<usize> {
-    //! rule: -1-2^0, -1-2^1, -1-2^2, -1-2^3...
+    //! rule: -1-2\^0, -1-2\^1, -1-2\^2, -1-2\^3...
     //! 
     //!       -2,     -3,     -5,     -9...
-    let mut long_index = Vec::new();
+    let mut long_index = vec![];
     for i in 0..count {
         let idx = index - 1 - usize::pow(2, i.try_into().unwrap());
         if idx < num {
@@ -35,7 +29,16 @@ pub fn long_mode_2(num: usize, index: usize, count: usize) -> Vec<usize> {
 }
 
 pub fn long_depend(num: usize, index: usize, count: usize, mode: usize) -> Vec<usize> {
-    let mut res = Vec::new();
+    //! Generate indexs of long depended.
+    //! 
+    //! num: the number of all blocks
+    //! 
+    //! index: the index of the current block
+    //! 
+    //! count: the count of depended indexs
+    //! 
+    //! mode: choose the rule
+    let mut res = vec![];
     if mode == 1 {
         res = long_mode_1(num, index, count);
     }
@@ -46,18 +49,10 @@ pub fn long_depend(num: usize, index: usize, count: usize, mode: usize) -> Vec<u
 }
 
 pub fn short_mode_1(num: usize, index: usize, count: usize) -> Vec<usize> {
-    //! ## generate a list of short depended indexs
-    //! 
-    //! num: blcok number
-    //! 
-    //! index: the index of the current block
-    //! 
-    //! count: the count of blocks
-    //! 
-    //! rule: -1-2*0, +1+2*0, -1-2*1, +1+2*1, ...
+    //! rule: -1-2\*0, +1+2\*0, -1-2\*1, +1+2\*1, ...
     //! 
     //!       -1,     1,      -3,     3...
-    let mut short_index = Vec::new();
+    let mut short_index = vec![];
     let mut epoch = 0;
 
     loop {
@@ -85,10 +80,10 @@ pub fn short_mode_1(num: usize, index: usize, count: usize) -> Vec<usize> {
 }
 
 pub fn short_mode_2(num: usize, index: usize, count: usize) -> Vec<usize> {
-    //! rule: -1-2^0, -1+2^1, -1-2^2, -1+2^3...
+    //! rule: -1-2\^0, -1+2\^1, -1-2\^2, -1+2\^3...
     //! 
     //!       -2,     1,      -5,     7...
-    let mut short_index = Vec::new();
+    let mut short_index = vec![];
     let mut flag = false;
     for i in 0..count {
         let idx;
@@ -113,7 +108,16 @@ pub fn short_mode_2(num: usize, index: usize, count: usize) -> Vec<usize> {
 
 
 pub fn short_depend(num: usize, index: usize, count: usize, mode: usize) -> Vec<usize> {
-    let mut res = Vec::new();
+    //! Generate indexs of short depended.
+    //! 
+    //! num: the number of all blocks
+    //! 
+    //! index: the index of the current block
+    //! 
+    //! count: the count of depended indexs
+    //! 
+    //! mode: choose the rule
+    let mut res = vec![];
     if mode == 1 {
         res = short_mode_1(num, index, count);
     }

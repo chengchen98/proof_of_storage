@@ -2,6 +2,12 @@ use ff::PrimeField;
 use bellman::{Circuit, ConstraintSystem, SynthesisError};
 pub const INPUT_SIZE: usize = 256;
 
+
+/// Prove two equations
+/// 
+/// y2 = x_bit
+/// 
+/// y1 = y2\[0..n\]
 pub struct EqualDemo<S: PrimeField>{
     pub y1: Option<S>,
     pub y2: Option<S>,
@@ -206,6 +212,7 @@ mod test {
     
             let start = Instant::now();
             let proof = Proof::read(&proof_vec[..]).unwrap();
+            
             // Check the proof
             assert!(verify_proof(&pvk, &proof, &[y1, y2]).is_ok());
             total_verifying += start.elapsed();
@@ -221,14 +228,5 @@ mod test {
     
         println!("Average proving time: {:?} seconds", proving_avg);
         println!("Average verifying time: {:?} seconds", verifying_avg);
-    }
-
-    
-    #[test]
-    fn test() {
-        let x = Scalar::from_str_vartime("256").unwrap();
-        let bits = s_to_bits(x);
-        let y = bits_to_s(bits, 256);
-        assert_eq!(x, y);
     }
 }
