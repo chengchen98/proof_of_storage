@@ -1,20 +1,21 @@
 use ff::PrimeField;
 use bellman::{Circuit, ConstraintSystem, SynthesisError};
 
-pub const MIMC_ROUNDS: usize = 322;
-pub const INPUT_SIZE: usize = 256;
+pub const INPUT_SIZE: usize = 20;
 
-/// Prove the process of computing g\^x_bit
+/// Prove the process of computing g\^x
+/// 
+/// x is bit
 pub struct PowDemo<S: PrimeField>{
     pub g: Option<S>,
-    pub x_bit: [Option<S>; INPUT_SIZE],
+    pub x_bit: [Option<u8>; INPUT_SIZE]
 }
 
-pub fn pow<S: PrimeField>(g: S, x_bit: [S; INPUT_SIZE]) -> S {
+pub fn pow<S: PrimeField>(g: S, x: &Vec<u8>) -> S {
     let mut y = S::one();
     let mut g_val = g;
-    for i in 0..INPUT_SIZE {
-       if x_bit[i] == S::one() {
+    for i in 0..x.len() {
+       if x[i] == 1 {
             y.mul_assign(&g_val);
        }
        g_val = g_val.square();
@@ -22,11 +23,10 @@ pub fn pow<S: PrimeField>(g: S, x_bit: [S; INPUT_SIZE]) -> S {
     y
 }
 
-
 impl<S:PrimeField> Circuit<S> for PowDemo<S> {
     fn synthesize<CS: ConstraintSystem<S>>(self, cs: &mut CS) -> Result<(), SynthesisError>{
         let mut y_val = S::from_str_vartime("1");
-        let mut g_val = self.g;       
+        let mut g_val = self.g; 
 
         let mut g = cs.alloc(|| "g", || {
             g_val.ok_or(SynthesisError::AssignmentMissing)
@@ -36,21 +36,30 @@ impl<S:PrimeField> Circuit<S> for PowDemo<S> {
             y_val.ok_or(SynthesisError::AssignmentMissing)
         })?;
 
-        for i in 0..self.x_bit.len() {
-            let bit_val = self.x_bit[i];
-            let bit = cs.alloc(|| "x_i", || {
+        for i in 0..INPUT_SIZE {
+            let bit = self.x_bit[i];
+            let mut bit_val = None;
+            if bit == Some(1) {
+                bit_val = Some(S::one());
+            }
+            else if bit == Some(0) {
+                bit_val = Some(S::zero());
+            }
+
+            // bit = xi
+            let bit = cs.alloc(|| "xi", || {
                 bit_val.ok_or(SynthesisError::AssignmentMissing)
             })?;
 
-            // x_i = 0 or 1
+            // xi = 0 or 1
             cs.enforce(
-                || "x_i * x_i = x_i",
+                || "xi * xi = xi",
                 |lc| lc + bit,
                 |lc| lc + bit,
                 |lc| lc + bit
             );
             
-            //tmp1 = x_i * g^(2^i)
+            // tmp1 = xi * g^(2^i)
             let tmp1_val = g_val.map(|mut e| {
                 e.mul_assign(&bit_val.unwrap());
                 e
@@ -61,13 +70,13 @@ impl<S:PrimeField> Circuit<S> for PowDemo<S> {
             })?;
 
             cs.enforce(
-                || "x_i * g = tmp1",
+                || "xi * g^(2*i) = tmp1",
                 |lc| lc + bit,
                 |lc| lc + g,
                 |lc| lc + tmp1
             );
 
-            // tmp2 = tmp1 + 1 - x_i
+            // tmp2 = tmp1 + 1 - xi
             let tmp2_val = tmp1_val.map(|mut e| {
                 e.add_assign(&S::from_str_vartime("1").unwrap());
                 e.sub_assign(&bit_val.unwrap());
@@ -79,7 +88,7 @@ impl<S:PrimeField> Circuit<S> for PowDemo<S> {
             })?;
              
             cs.enforce(
-                || "tmp1 + 1 = tmp2 + x_i",
+                || "tmp1 + 1 = tmp2 + xi",
                 |lc| lc + tmp1 + (S::from_str_vartime("1").unwrap(), CS::one()),
                 |lc| lc + CS::one(),
                 |lc| lc + tmp2 + bit
@@ -91,7 +100,7 @@ impl<S:PrimeField> Circuit<S> for PowDemo<S> {
                 e
             });
         
-            let newy = if i == self.x_bit.len() - 1 {
+            let newy = if i == INPUT_SIZE - 1 {
                 cs.alloc_input(|| "image", || {
                     newy_val.ok_or(SynthesisError::AssignmentMissing)
                 })?
@@ -179,13 +188,13 @@ mod test {
             println!("Test sample: {:?}", sample + 1);
 
             let x = Scalar::random(&mut rng);
-            let x_bit = s_to_bits(x);
+            let x_bit = s_to_bits(x, INPUT_SIZE);
             let g = Scalar::random(&mut rng);
-            let y = pow(g, x_bit);
+            let y = pow(g, &x_bit);
             
-            let mut new_x_bit: [Option<Scalar>; INPUT_SIZE] = [None; INPUT_SIZE];
-            for i in 0..x_bit.len() {
-                new_x_bit[i] = Some(x_bit[i]);
+            let mut new_x: [Option<u8>; INPUT_SIZE] = [None; INPUT_SIZE];
+            for i in 0..INPUT_SIZE {
+                new_x[i] = Some(x_bit[i]);
             }
     
             proof_vec.truncate(0);
@@ -194,7 +203,7 @@ mod test {
             {
                 let c = PowDemo {
                     g: Some(g),
-                    x_bit: new_x_bit
+                    x_bit: new_x
                 };
     
                 let proof = create_random_proof(c, &params, &mut rng).unwrap();

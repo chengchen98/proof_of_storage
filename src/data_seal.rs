@@ -1,3 +1,6 @@
+use std::fs::File;
+use std::io::{Seek, Read, SeekFrom, Write};
+
 use bls12_381::Scalar;
 
 use crate::data::vecu8_xor;
@@ -5,17 +8,19 @@ use crate::depend::{long_depend, short_depend};
 use crate::mimc_hash::mimc_hash;
 use crate::vde::{vde, vde_inv};
 
+pub const L2: usize = 256;
+pub const L1: usize = 64;
 
-pub fn create_depend(block_num_level_2: usize, block_num_level_1: usize, index_count_l: usize, index_count_s: usize, mode_l: usize, mode_s: usize) -> (Vec<Vec<Vec<usize>>>, Vec<Vec<Vec<usize>>>) {
+pub fn create_depend(block_num2: usize, block_num1: usize, index_count_l: usize, index_count_s: usize, mode_l: usize, mode_s: usize) -> (Vec<Vec<Vec<usize>>>, Vec<Vec<Vec<usize>>>) {
     let mut index_l_collect = vec![];
     let mut index_s_collect = vec![];
 
-    for i in 0..block_num_level_2 {
+    for i in 0..block_num2 {
         let mut index_l = vec![];
         let mut index_s = vec![];
-        for j in 0..block_num_level_1 {
-            index_l.push(long_depend(block_num_level_2, i, index_count_l, mode_l));
-            index_s.push(short_depend(block_num_level_1, j, index_count_s, mode_s));
+        for j in 0..block_num1 {
+            index_l.push(long_depend(block_num2, i, index_count_l, mode_l));
+            index_s.push(short_depend(block_num1, j, index_count_s, mode_s));
         }
         index_l_collect.push(index_l);
         index_s_collect.push(index_s);
@@ -24,50 +29,73 @@ pub fn create_depend(block_num_level_2: usize, block_num_level_1: usize, index_c
     (index_l_collect, index_s_collect)
 }
 
-pub fn seal(round: usize, data_blocks: &mut Vec<Vec<Vec<u8>>>, index_l_collect: &Vec<Vec<Vec<usize>>>, index_s_collect: &Vec<Vec<Vec<usize>>>, constants: &Vec<Scalar>, key: Scalar, mode_vde: &str) {
+pub fn seal(round: usize, file: &mut File, block_num2: usize, block_num1: usize, index_l_collect: &Vec<Vec<Vec<usize>>>, index_s_collect: &Vec<Vec<Vec<usize>>>, constants: &Vec<Scalar>, key: Scalar, mode_vde: &str) {
     for _ in 0..round {
-        for i in 0..data_blocks.len() {
-            for j in 0..data_blocks[i].len() {
+        let mut buf = [0; L1];
+
+        for i in 0..block_num2 {
+            for j in 0..block_num1 {
                 let mut depend_data = vec![];
 
                 for k in 0..index_l_collect[i][j].len() {
-                    depend_data.append(&mut data_blocks[k][j].clone());
+                    file.seek(SeekFrom::Start((k * L2 + j * L1).try_into().unwrap())).unwrap();
+                    file.read(&mut buf).unwrap();
+                    depend_data.append(&mut buf.to_vec());
                 }
 
                 for k in 0..index_s_collect[i][j].len() {
-                    depend_data.append(&mut data_blocks[i][k].clone());
+                    file.seek(SeekFrom::Start((i * L2 + k * L1).try_into().unwrap())).unwrap();
+                    file.read(&mut buf).unwrap();
+                    depend_data.append(&mut buf.to_vec());
                 }
 
-                depend_data = mimc_hash(&depend_data, &constants);
-                depend_data = vecu8_xor(&depend_data, &data_blocks[i][j]);
-                let new_data = vde(&depend_data, key, mode_vde);
+                file.seek(SeekFrom::Start((i * L2 + j * L1).try_into().unwrap())).unwrap();
+                file.read(&mut buf).unwrap();
+                let cur_block = buf.to_vec();
 
-                data_blocks[i][j] = new_data;
+                depend_data = mimc_hash(&depend_data, &constants);
+                depend_data = vecu8_xor(&depend_data, &cur_block);
+                let new_block = vde(&depend_data, key, mode_vde);
+
+                buf.copy_from_slice(&new_block);
+                file.seek(SeekFrom::Start((i * L2 + j * L1).try_into().unwrap())).unwrap();
+                file.write_all(&buf).unwrap();
             }
         }
     }
 }
 
-pub fn unseal(round: usize, data_blocks: &mut Vec<Vec<Vec<u8>>>, index_l_collect: &Vec<Vec<Vec<usize>>>, index_s_collect: &Vec<Vec<Vec<usize>>>, constants: &Vec<Scalar>, key: Scalar, mode_vde: &str) {
+pub fn unseal(round: usize, file: &mut File, block_num2: usize, block_num1: usize, index_l_collect: &Vec<Vec<Vec<usize>>>, index_s_collect: &Vec<Vec<Vec<usize>>>, constants: &Vec<Scalar>, key: Scalar, mode_vde: &str) {
     for _ in 0..round {
-        for i in 0..data_blocks.len() {
-            for j in 0..data_blocks[i].len() {
+        let mut buf = [0u8; L1];
+
+        for i in 0..block_num2 {
+            for j in 0..block_num1 {
                 let mut depend_data = vec![];
 
                 for k in 0..index_l_collect[i][j].len() {
-                    depend_data.append(&mut data_blocks[k][j].clone());
+                    file.seek(SeekFrom::Start((k * L2 + j * L1).try_into().unwrap())).unwrap();
+                    file.read(&mut buf).unwrap();
+                    depend_data.append(&mut buf.to_vec());
                 }
 
                 for k in 0..index_s_collect[i][j].len() {
-                    depend_data.append(&mut data_blocks[i][k].clone());
+                    file.seek(SeekFrom::Start((i * L2 + k * L1).try_into().unwrap())).unwrap();
+                    file.read(&mut buf).unwrap();
+                    depend_data.append(&mut buf.to_vec());
                 }
+                
+                file.seek(SeekFrom::Start((i * L2 + j * L1).try_into().unwrap())).unwrap();
+                file.read(&mut buf).unwrap();
+                let cur_block = buf.to_vec();
 
                 depend_data = mimc_hash(&depend_data, &constants);
+                let mut new_block = vde_inv(&cur_block, key, mode_vde);
+                new_block = vecu8_xor(&new_block, &depend_data);
 
-                let mut new_data = vde_inv(&data_blocks[i][j], key, mode_vde);
-                new_data = vecu8_xor(&new_data, &depend_data);
-
-                data_blocks[i][j] = new_data;
+                buf.copy_from_slice(&new_block);
+                file.seek(SeekFrom::Start((i * L2 + j * L1).try_into().unwrap())).unwrap();
+                file.write_all(&buf).unwrap();
             }
         }
     }
@@ -76,33 +104,30 @@ pub fn unseal(round: usize, data_blocks: &mut Vec<Vec<Vec<u8>>>, index_l_collect
 #[cfg(test)]
 mod test {
 
-    use std::fs::File;
+    use std::fs::OpenOptions;
     use std::time::Instant;
 
     use bls12_381::Scalar;
     use ff::Field;
     use rand::thread_rng;
 
-    use crate::data_seal::{create_depend, seal, unseal};
-    use crate::data::{Data, to_block, DATA_DIR};
+    use crate::data_seal::*;
+    use crate::data::DATA_DIR;
 
     #[test]
     fn test() {
         let mut rng = thread_rng();
 
-        // Read data.
-        let file = File::open(DATA_DIR).unwrap();
-        let data: Data<Vec<u8>> = serde_json::from_reader(file).unwrap();
-        let data_vec = data.content;
+        let data_len: usize = 1024 * 1024;
+        let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(DATA_DIR)
+        .unwrap();
 
-        let len_level_2: usize = 128;
-        let len_level_1: usize = 64;
-
-        let data_blocks = to_block(&data_vec, len_level_2);
-        let mut data_blocks = data_blocks.iter().map(|x| to_block(&x, len_level_1)).collect::<Vec<Vec<Vec<_>>>>();
-
-        let block_num_level_2 = data_blocks.len();
-        let block_num_level_1 = data_blocks[0].len();
+        let block_num2 = data_len / L2;
+        let block_num1 = L2 / L1;
 
         let index_count_l: usize = 3;
         let index_count_s: usize = 3;
@@ -113,28 +138,21 @@ mod test {
 
         const ROUND: usize = 3;
         const MIMC_ROUNDS: usize = 322;
-        
+
         let constants = (0..MIMC_ROUNDS)
             .map(|_| Scalar::random(&mut rng))
             .collect::<Vec<_>>();
         let key = Scalar::random(&mut rng);
 
-        let (index_l_collect, index_s_collect) = create_depend(block_num_level_2, block_num_level_1, index_count_l, index_count_s, mode_l, mode_s);
+        let (index_l_collect, index_s_collect) = create_depend(block_num2, block_num1, index_count_l, index_count_s, mode_l, mode_s);
         
         let start = Instant::now();
-        seal(ROUND, &mut data_blocks, &index_l_collect, &index_s_collect, &constants, key, mode_vde);
+        seal(ROUND, &mut file, block_num2, block_num1, &index_l_collect, &index_s_collect, &constants, key, mode_vde);
         println!("Seal: {:?}", start.elapsed());
 
         let start = Instant::now();
-        unseal(ROUND, &mut data_blocks, &index_l_collect, &index_s_collect, &constants, key, mode_vde);
+        unseal(ROUND, &mut file, block_num2, block_num1, &index_l_collect, &index_s_collect, &constants, key, mode_vde);
         println!("Unseal: {:?}", start.elapsed());
 
-        for i in 0..data_blocks.len() {
-            for j in 0..data_blocks[i].len() {
-                for k in 0..data_blocks[i][j].len() {
-                    assert_eq!(data_blocks[i][j][k], data_vec[i * len_level_2 + j * len_level_1 + k]);
-                }
-            }
-        }
     }
 }
