@@ -1,23 +1,23 @@
 use ff::PrimeField;
 use bellman::{Circuit, ConstraintSystem, SynthesisError};
-pub const INPUT_SIZE: usize = 256;
 
+pub const INPUT_SIZE: usize = 256;
 
 /// Prove two equations
 /// 
-/// y2 = x_bit
+/// x2 = x_bit
 /// 
-/// y1 = y2\[0..n\]
+/// x1 = x2\[0..n\]
 pub struct EqualDemo<S: PrimeField>{
-    pub y1: Option<S>,
-    pub y2: Option<S>,
-    pub x_bit: [Option<S>; INPUT_SIZE],
-    pub n: usize
+    pub x1: Option<S>,
+    pub x2: Option<S>,
+    pub x_bit: [Option<u8>; INPUT_SIZE],
+    pub difficulty: usize
 }
 
 impl<S:PrimeField> Circuit<S> for EqualDemo<S> {
     fn synthesize<CS: ConstraintSystem<S>>(self, cs: &mut CS) -> Result<(), SynthesisError>{
-        let mut y_val = S::from_str_vartime("0");
+        let mut x_val = S::from_str_vartime("0");
         let mut two_val = S::from_str_vartime("1");  
 
         let mut two = cs.alloc(|| "g", || {
@@ -25,25 +25,33 @@ impl<S:PrimeField> Circuit<S> for EqualDemo<S> {
         })?;
 
         let mut y = cs.alloc(|| "y", || {
-            y_val.ok_or(SynthesisError::AssignmentMissing)
+            x_val.ok_or(SynthesisError::AssignmentMissing)
         })?;
 
         for i in 0..INPUT_SIZE {
-            let bit_val = self.x_bit[i];
+            let bit = self.x_bit[i];
+            let mut bit_val = None;
+            if bit == Some(1) {
+                bit_val = Some(S::one());
+            }
+            else if bit == Some(0) {
+                bit_val = Some(S::zero());
+            }
 
-            let bit = cs.alloc(|| "x_i", || {
+            // bit = xi
+            let bit = cs.alloc(|| "xi", || {
                 bit_val.ok_or(SynthesisError::AssignmentMissing)
             })?;
 
-            // x_i = 0 or 1
+            // xi = 0 or 1
             cs.enforce(
-                || "x_i * x_i = x_i",
+                || "xi * xi = xi",
                 |lc| lc + bit,
                 |lc| lc + bit,
                 |lc| lc + bit
             );
             
-            // tmp1 = x_i * 2^i
+            // tmp1 = xi * 2^i
             let tmp1_val = bit_val.map(|mut e| {
                 e.mul_assign(&two_val.unwrap());
                 e
@@ -54,15 +62,15 @@ impl<S:PrimeField> Circuit<S> for EqualDemo<S> {
             })?;
             
             cs.enforce(
-                || "x_i * 2^i = tmp1",
+                || "xi * 2^i = tmp1",
                 |lc| lc + bit,
                 |lc| lc + two,
                 |lc| lc + tmp1
             );
             
-            // tmp2 = tmp1 + y
+            // tmp2 = tmp1 + x
             let tmp2_val = tmp1_val.map(|mut e| {
-                e.add_assign(&y_val.unwrap());
+                e.add_assign(&x_val.unwrap());
                 e
             });
 
@@ -77,8 +85,8 @@ impl<S:PrimeField> Circuit<S> for EqualDemo<S> {
                 |lc| lc + tmp2
             );
 
-            if i == self.n - 1 {
-                let y1_val = self.y1;
+            if i == self.difficulty - 1 {
+                let y1_val = self.x1;
                 let y1 = cs.alloc_input(|| "y1", || {
                     y1_val.ok_or(SynthesisError::AssignmentMissing)
                 })?;
@@ -92,7 +100,7 @@ impl<S:PrimeField> Circuit<S> for EqualDemo<S> {
             } 
 
             if i == INPUT_SIZE - 1 {
-                let y2_val = self.y2;
+                let y2_val = self.x2;
                 let y2 = cs.alloc_input(|| "y2", || {
                     y2_val.ok_or(SynthesisError::AssignmentMissing)
                 })?;
@@ -124,7 +132,7 @@ impl<S:PrimeField> Circuit<S> for EqualDemo<S> {
             two = newtwo;
             two_val = newtwo_val;
             y = tmp2;
-            y_val = tmp2_val;
+            x_val = tmp2_val;
         }
 
         Ok(())
@@ -151,17 +159,16 @@ mod test {
     #[test]
     fn test_equal() {
         let mut rng = thread_rng();
-
-        const DIFFICULTY: usize = 16;
+        const DIFFICULTY: usize = 8;
     
         println!("Creating parameters...");
     
         let params = {
             let c = EqualDemo {
-                y1: None,
-                y2: None,
+                x1: None,
+                x2: None,
                 x_bit: [None; INPUT_SIZE],
-                n: DIFFICULTY
+                difficulty: DIFFICULTY
             };
 
             generate_random_parameters::<Bls12, _, _>(c, &mut rng).unwrap()
@@ -181,14 +188,14 @@ mod test {
             
             println!("Test sample: {:?}", sample + 1);
 
-            let x1 = Scalar::random(&mut rng);
-            let x_bit = s_to_bits(x1);
+            let x = Scalar::random(&mut rng);
+            let x_bit = s_to_bits(x, INPUT_SIZE);
 
-            let y1 = bits_to_s(x_bit, DIFFICULTY);
-            let y2 = bits_to_s(x_bit, INPUT_SIZE);
+            let x1 = bits_to_s(&x_bit, DIFFICULTY);
+            let x2 = bits_to_s(&x_bit, INPUT_SIZE);
             
-            let mut new_x_bit: [Option<Scalar>; INPUT_SIZE] = [None; INPUT_SIZE];
-            for i in 0..x_bit.len() {
+            let mut new_x_bit: [Option<u8>; INPUT_SIZE] = [None; INPUT_SIZE];
+            for i in 0..INPUT_SIZE {
                 new_x_bit[i] = Some(x_bit[i]);
             }
     
@@ -197,10 +204,10 @@ mod test {
             let start = Instant::now();
             {
                 let c = EqualDemo {
-                    y1: Some(y1),
-                    y2: Some(y2),
+                    x1: Some(x1),
+                    x2: Some(x2),
                     x_bit: new_x_bit,
-                    n: DIFFICULTY
+                    difficulty: DIFFICULTY
                 };
     
                 let proof = create_random_proof(c, &params, &mut rng).unwrap();
@@ -214,7 +221,7 @@ mod test {
             let proof = Proof::read(&proof_vec[..]).unwrap();
             
             // Check the proof
-            assert!(verify_proof(&pvk, &proof, &[y1, y2]).is_ok());
+            assert!(verify_proof(&pvk, &proof, &[x1, x2]).is_ok());
             total_verifying += start.elapsed();
         }
 

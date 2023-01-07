@@ -1,96 +1,96 @@
 use bls12_381::Scalar;
-use ff::PrimeField;
+// use ff::PrimeField;
 
-use crate::pow::pow;
-use crate::convert::s_to_bits;
-
-// pub fn sloth(x: Scalar, p: Scalar) -> Scalar {
-//     return x.add(&p);
-// }
-
-// pub fn sloth_inv(y: Scalar, p: Scalar) -> Scalar {
-//     return y.sub(&p);
-// }
-
-pub fn compare_s(a: Scalar, b: Scalar) -> bool {
-    let a_vec = a.to_bytes();
-    let b_vec = b.to_bytes();
-    for i in 0..32 {
-        if a_vec[31 - i] >= b_vec[31 - i] {
-            return true;
-        }
-        else {
-            return false;
-        }
-    }
-    true
-}
-
-pub fn modp_s(x: Scalar, p: Scalar) -> Scalar {
-    let mut res = x;
-    loop {
-        if compare_s(res, p) == false {
-            break;
-        }
-        res = res.sub(&p);
-    }
-    res
-}
+// use crate::pow::pow;
+// use crate::convert::s_to_bits;
 
 pub fn sloth(x: Scalar, p: Scalar) -> Scalar {
-    let mut y;
-
-    let flag = pow(x, s_to_bits(p.sub(&Scalar::one()).mul(&Scalar::from_str_vartime("2").unwrap().invert().unwrap())));
-    let flag = modp_s(flag, p);
-
-    if flag == Scalar::one() {
-        y = pow(x, s_to_bits(p.add(&Scalar::one()).mul(&Scalar::from_str_vartime("4").unwrap().invert().unwrap())));
-        y = modp_s(y, p);
-
-        if y.is_odd().unwrap_u8() == 0 {
-            y = p.sub(&y);
-            y = modp_s(y, p);
-        }
-    }
-    else {
-        let ans = p.sub(&x);
-        let ans = modp_s(ans, p);
-
-        y = pow(ans, s_to_bits(p.add(&Scalar::one()).mul(&Scalar::from_str_vartime("4").unwrap().invert().unwrap())));
-        y = modp_s(y, p);
-
-        if y.is_even().unwrap_u8() == 0 {
-            y = p.sub(&y);
-            y = modp_s(y, p);
-        }
-    }
-
-    if y.is_odd().unwrap_u8() == 0 {
-        return modp_s(y.add(&Scalar::one()), p);
-    }
-    else {
-        return modp_s(y.sub(&Scalar::one()), p);
-    }
+    return x.add(&p);
 }
 
 pub fn sloth_inv(y: Scalar, p: Scalar) -> Scalar {
-    let mut x;
-    if y.is_odd().unwrap_u8() == 0 {
-        x = y.add(&Scalar::one());
-        x = modp_s(x, p);
-    }
-    else {
-        x = y.sub(&Scalar::one());
-        x = modp_s(x, p);
-    }
-
-    if x.is_odd().unwrap_u8() == 0 {
-        return modp_s(p.sub(&x.square()), p);
-    }
-    else {
-        return modp_s(x.square(), p);
-    }
+    return y.sub(&p);
 }
+
+// pub fn compare_s(a: Scalar, b: Scalar) -> bool {
+//     let a_vec = a.to_bytes();
+//     let b_vec = b.to_bytes();
+//     for i in 0..32 {
+//         if a_vec[31 - i] >= b_vec[31 - i] {
+//             return true;
+//         }
+//         else {
+//             return false;
+//         }
+//     }
+//     true
+// }
+
+// pub fn modp_s(x: Scalar, p: Scalar) -> Scalar {
+//     let mut res = x;
+//     loop {
+//         if compare_s(res, p) == false {
+//             break;
+//         }
+//         res = res.sub(&p);
+//     }
+//     res
+// }
+
+// pub fn sloth(x: Scalar, p: Scalar) -> Scalar {
+//     let mut y;
+
+//     let flag = pow(x, s_to_bits(p.sub(&Scalar::one()).mul(&Scalar::from_str_vartime("2").unwrap().invert().unwrap())));
+//     let flag = modp_s(flag, p);
+
+//     if flag == Scalar::one() {
+//         y = pow(x, s_to_bits(p.add(&Scalar::one()).mul(&Scalar::from_str_vartime("4").unwrap().invert().unwrap())));
+//         y = modp_s(y, p);
+
+//         if y.is_odd().unwrap_u8() == 0 {
+//             y = p.sub(&y);
+//             y = modp_s(y, p);
+//         }
+//     }
+//     else {
+//         let ans = p.sub(&x);
+//         let ans = modp_s(ans, p);
+
+//         y = pow(ans, s_to_bits(p.add(&Scalar::one()).mul(&Scalar::from_str_vartime("4").unwrap().invert().unwrap())));
+//         y = modp_s(y, p);
+
+//         if y.is_even().unwrap_u8() == 0 {
+//             y = p.sub(&y);
+//             y = modp_s(y, p);
+//         }
+//     }
+
+//     if y.is_odd().unwrap_u8() == 0 {
+//         return modp_s(y.add(&Scalar::one()), p);
+//     }
+//     else {
+//         return modp_s(y.sub(&Scalar::one()), p);
+//     }
+// }
+
+// pub fn sloth_inv(y: Scalar, p: Scalar) -> Scalar {
+//     let mut x;
+//     if y.is_odd().unwrap_u8() == 0 {
+//         x = y.add(&Scalar::one());
+//         x = modp_s(x, p);
+//     }
+//     else {
+//         x = y.sub(&Scalar::one());
+//         x = modp_s(x, p);
+//     }
+
+//     if x.is_odd().unwrap_u8() == 0 {
+//         return modp_s(p.sub(&x.square()), p);
+//     }
+//     else {
+//         return modp_s(x.square(), p);
+//     }
+// }
 
 pub fn single_vde(x: Scalar, p: Scalar, mode: &str) -> Scalar {
     if mode == "sloth" {
