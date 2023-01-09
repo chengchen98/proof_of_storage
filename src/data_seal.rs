@@ -8,10 +8,12 @@ use crate::depend::{long_depend, short_depend};
 use crate::mimc_hash::mimc_hash;
 use crate::vde::{vde, vde_inv};
 
+pub const DATA_DIR: &str = r"src\seal_data.txt";
 pub const L2: usize = 256;
 pub const L1: usize = 64;
 
 pub fn create_depend(block_num2: usize, block_num1: usize, index_count_l: usize, index_count_s: usize, mode_l: usize, mode_s: usize) -> (Vec<Vec<Vec<usize>>>, Vec<Vec<Vec<usize>>>) {
+    //! Collect all the depended indexs of every data blocks.
     let mut index_l_collect = vec![];
     let mut index_s_collect = vec![];
 
@@ -30,14 +32,18 @@ pub fn create_depend(block_num2: usize, block_num1: usize, index_count_l: usize,
 }
 
 pub fn seal(round: usize, file: &mut File, block_num2: usize, block_num1: usize, index_l_collect: &Vec<Vec<Vec<usize>>>, index_s_collect: &Vec<Vec<Vec<usize>>>, constants: &Vec<Scalar>, key: Scalar, mode_vde: &str) {
+    //! Seal data block by block for n round.
     for _ in 0..round {
         let mut buf = [0; L1];
 
         for i in 0..block_num2 {
             for j in 0..block_num1 {
-                let mut depend_data = vec![];
 
+                // collect the depended data
+                let mut depend_data = vec![];
                 for k in 0..index_l_collect[i][j].len() {
+
+                    // move the file pointer
                     file.seek(SeekFrom::Start((k * L2 + j * L1).try_into().unwrap())).unwrap();
                     file.read(&mut buf).unwrap();
                     depend_data.append(&mut buf.to_vec());
@@ -48,7 +54,7 @@ pub fn seal(round: usize, file: &mut File, block_num2: usize, block_num1: usize,
                     file.read(&mut buf).unwrap();
                     depend_data.append(&mut buf.to_vec());
                 }
-
+                
                 file.seek(SeekFrom::Start((i * L2 + j * L1).try_into().unwrap())).unwrap();
                 file.read(&mut buf).unwrap();
                 let cur_block = buf.to_vec();
@@ -66,6 +72,7 @@ pub fn seal(round: usize, file: &mut File, block_num2: usize, block_num1: usize,
 }
 
 pub fn unseal(round: usize, file: &mut File, block_num2: usize, block_num1: usize, index_l_collect: &Vec<Vec<Vec<usize>>>, index_s_collect: &Vec<Vec<Vec<usize>>>, constants: &Vec<Scalar>, key: Scalar, mode_vde: &str) {
+    //! Unseal data block by block for n round.
     for _ in 0..round {
         let mut buf = [0u8; L1];
 
@@ -112,13 +119,16 @@ mod test {
     use rand::thread_rng;
 
     use crate::data_seal::*;
-    use crate::data::DATA_DIR;
+    use crate::data::write_file;
 
     #[test]
     fn test() {
         let mut rng = thread_rng();
 
+        // data len: n = n bytes
         let data_len: usize = 1024 * 1024;
+        write_file(data_len, DATA_DIR).unwrap();
+
         let mut file = OpenOptions::new()
         .read(true)
         .write(true)

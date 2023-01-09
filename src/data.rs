@@ -1,8 +1,5 @@
 use std::{fs::File, io::Write};
-
 use rand::{thread_rng, Rng};
-
-pub const DATA_DIR: &str = r"src\data.txt";
 
 pub fn padding(data: &Vec<u8>, n: usize) -> Vec<u8> {
     let mut res = vec![];
@@ -37,7 +34,6 @@ pub fn vecu8_xor(left: &Vec<u8>, right: &Vec<u8>) -> Vec<u8> {
     res
 }
 
-
 pub fn write_file(n: usize, dir: &str) -> std::io::Result<()> {
     let mut file = File::create(dir).expect("Create file failed!");
     
@@ -58,6 +54,8 @@ pub fn write_file(n: usize, dir: &str) -> std::io::Result<()> {
 #[cfg(test)]
 mod test {
     use super::*;
+    
+    const DATA_DIR: &str = r"src\data.txt";
 
     #[test]
     fn test_data() {
