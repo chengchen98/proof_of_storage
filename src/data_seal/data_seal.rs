@@ -3,10 +3,10 @@ use std::io::{Seek, Read, SeekFrom, Write};
 
 use bls12_381::Scalar;
 
-use crate::data::vecu8_xor;
-use crate::depend::{long_depend, short_depend};
-use crate::mimc_hash::mimc_hash;
-use crate::vde::{vde, vde_inv};
+use super::depend::{long_depend, short_depend};
+use crate::common::data::vecu8_xor;
+use crate::common::mimc_hash::mimc_hash;
+use crate::vde::vde::{vde, vde_inv};
 
 pub const DATA_DIR: &str = r"src\seal_data.txt";
 pub const L2: usize = 256;
@@ -118,8 +118,8 @@ mod test {
     use ff::Field;
     use rand::thread_rng;
 
-    use crate::data_seal::*;
-    use crate::data::write_file;
+    use super::*;
+    use crate::common::data::write_file;
 
     #[test]
     fn test() {
@@ -146,7 +146,7 @@ mod test {
         let mode_s: usize = 1;
         let mode_vde: &str = "sloth";
 
-        const ROUND: usize = 3;
+        const SEAL_ROUND: usize = 3;
         const MIMC_ROUNDS: usize = 322;
 
         let constants = (0..MIMC_ROUNDS)
@@ -157,11 +157,11 @@ mod test {
         let (index_l_collect, index_s_collect) = create_depend(block_num2, block_num1, index_count_l, index_count_s, mode_l, mode_s);
         
         let start = Instant::now();
-        seal(ROUND, &mut file, block_num2, block_num1, &index_l_collect, &index_s_collect, &constants, key, mode_vde);
+        seal(SEAL_ROUND, &mut file, block_num2, block_num1, &index_l_collect, &index_s_collect, &constants, key, mode_vde);
         println!("Seal: {:?}", start.elapsed());
 
         let start = Instant::now();
-        unseal(ROUND, &mut file, block_num2, block_num1, &index_l_collect, &index_s_collect, &constants, key, mode_vde);
+        unseal(SEAL_ROUND, &mut file, block_num2, block_num1, &index_l_collect, &index_s_collect, &constants, key, mode_vde);
         println!("Unseal: {:?}", start.elapsed());
 
     }

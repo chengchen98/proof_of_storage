@@ -13,3 +13,6 @@ bls12_381 = "0.7.0"
 ff = "0.12"
 group = "0.12"
 pairing = { version = "0.22", optional = true }
+
+num-bigint = "0.4"
+num-integer = "0.1.44"

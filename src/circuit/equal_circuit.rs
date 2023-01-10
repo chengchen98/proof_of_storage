@@ -83,7 +83,7 @@ impl<'a, S:PrimeField> Circuit<S> for EqualDemo<'a, S> {
             })?;
              
             cs.enforce(
-                || "tmp1 + 1 = tmp2 + x_i",
+                || "(tmp1 + y) * 1 = tmp2",
                 |lc| lc + tmp1 + y,
                 |lc| lc + CS::one(),
                 |lc| lc + tmp2
@@ -151,7 +151,7 @@ mod test {
     use std::time::{Duration, Instant};
     use bls12_381::{Bls12, Scalar};
     
-    use crate::convert::{s_to_bits, bits_to_s};
+    use crate::common::convert::{s_to_bits, bits_to_s};
 
     use bellman::groth16::{
         create_random_proof, generate_random_parameters, prepare_verifying_key, verify_proof,
@@ -194,14 +194,19 @@ mod test {
             
             println!("Test sample: {:?}", sample + 1);
 
-            let x = Scalar::random(&mut rng);
-            let bits = s_to_bits(x, INPUT_SIZE);
+            let x2 = Scalar::random(&mut rng);
+            let x2_bits = s_to_bits(x2);
 
-            let x1 = bits_to_s(&bits, DIFFICULTY);
-            let x2 = bits_to_s(&bits, INPUT_SIZE);
+            let x1_bits = x2_bits[.. DIFFICULTY].to_string();
+            let x1 = bits_to_s(&x1_bits);
             
             for i in 0..INPUT_SIZE {
-                x_bit[i] = Some(bits[i]);
+                if x2_bits.chars().nth(i).unwrap() == '1' {
+                    x_bit[i] = Some(1);
+                }
+                else {
+                    x_bit[i] = Some(0);
+                }
             }
     
             proof_vec.truncate(0);
