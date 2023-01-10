@@ -11,11 +11,11 @@ pub struct PowDemo<'a, S: PrimeField> {
     pub x_bit: &'a [Option<u8>]
 }
 
-pub fn pow<S: PrimeField>(g: S, x: &Vec<u8>) -> S {
+pub fn pow<S: PrimeField>(g: S, x: &str) -> S {
     let mut y = S::one();
     let mut g_val = g;
     for i in 0..x.len() {
-       if x[i] == 1 {
+       if x.chars().nth(i).unwrap() == '1' {
             y.mul_assign(&g_val);
        }
        g_val = g_val.square();
@@ -158,7 +158,7 @@ mod test {
     use rand::thread_rng;
     use std::time::{Duration, Instant};
     use bls12_381::{Bls12, Scalar};
-    use crate::convert::s_to_bits;
+    use crate::common::convert::s_to_bits;
 
     use bellman::groth16::{
         create_random_proof, generate_random_parameters, prepare_verifying_key, verify_proof,
@@ -197,13 +197,18 @@ mod test {
             
             println!("Test sample: {:?}", sample + 1);
 
-            let x = Scalar::random(&mut rng);
-            let bits = s_to_bits(x, INPUT_SIZE);
             let g = Scalar::random(&mut rng);
+            let x = Scalar::from_str_vartime("2").unwrap();
+            let bits = s_to_bits(x);
             let y = pow(g, &bits);
-            
+  
             for i in 0..INPUT_SIZE {
-                x_bit[i] = Some(bits[i]);
+                if bits.chars().nth(i).unwrap() == '1' {
+                    x_bit[i] = Some(1);
+                }
+                else {
+                    x_bit[i] = Some(0);
+                }
             }
     
             proof_vec.truncate(0);

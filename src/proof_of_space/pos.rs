@@ -13,11 +13,11 @@ use bellman::groth16::{
     Proof, PreparedVerifyingKey,
 };
 
-use crate::convert::hex_to_s;
-use crate::mimc::mimc;
+use crate::common::convert::{bits_to_s, s_to_bits};
+use crate::common::mimc::mimc;
 use crate::circuit::pos_circuit::PosDemo;
 
-pub const DATA_DIR: &str = r"src\pos_data.txt";
+pub const DATA_DIR: &str = r"src\proof_of_space\pos_data.txt";
 pub const MIMC_ROUNDS: usize = 322;
 
 pub fn create_pos(n: usize, key: Scalar, m: Scalar, constants: &Vec<Scalar>) -> std::io::Result<()> {
@@ -28,8 +28,9 @@ pub fn create_pos(n: usize, key: Scalar, m: Scalar, constants: &Vec<Scalar>) -> 
 
     // Write y by line
     for x in 0..n {
-        let y = mimc(Scalar::from_str_vartime(&x.to_string()).unwrap().add(&key), m, &constants).to_string();
-        file.write_all(&y.as_bytes()[2..]).expect("Write failed!");
+        let y = mimc(Scalar::from_str_vartime(&x.to_string()).unwrap().add(&key), m, &constants);
+        let y = s_to_bits(y);
+        file.write_all(&y.as_bytes()).expect("Write failed!");
         file.write_all("\n".as_bytes()).expect("Write failed!");
     }
     Ok(())
@@ -41,7 +42,7 @@ pub fn create_challenge(challenge_count: usize, difficulty: usize) -> Vec<String
     //! The length of single challenge is DIFFICULTY.
     let mut rng = thread_rng();
     let mut challenges = vec![];
-    const CHARSET: &[u8] = b"0123456789abcdef";
+    const CHARSET: &[u8] = b"01";
 
     for _ in 0..challenge_count {
         let challenge: String = (0..difficulty)
@@ -68,7 +69,7 @@ pub fn prepare_hashmap(difficulty: usize) -> HashMap<String, usize> {
     // Read file by line
     for line in reader.lines() {
         let line = line.unwrap();
-        y_x_map.insert(line[line.len() - difficulty ..].to_string(), x);
+        y_x_map.insert(line[.. difficulty].to_string(), x);
         x += 1;
     }
     y_x_map
@@ -112,20 +113,22 @@ pub fn response_2(x_collect: &Vec<usize>, key: Scalar, m: Scalar, constants: &Ve
     //! (1) y = mimc(key + x, m); (2) yn = y\[0..n\]; (3) x_hash = mimc(xi + xj + ..)
     let mut rng = thread_rng();
 
+    let mut x = vec![];
     let mut yn = vec![];
     for i in 0..response_count {
-        yn.push(Some(hex_to_s(&challenges[index_response[i]])));
+        x.push(Some(Scalar::from_str_vartime(&x_collect[i].to_string()).unwrap()));
+        yn.push(Some(bits_to_s(&challenges[index_response[i]])));
     }
 
     // Create parameters for our circuit.
     let params = {
         let c = PosDemo {
             key: Some(key),
-            x: &x_collect,
+            x: &x,
             m: Some(m),
             constants: &constants,
             yn: &yn,
-            difficulty: difficulty * 4
+            difficulty: difficulty
         };
 
         generate_random_parameters::<Bls12, _, _>(c, &mut rng).unwrap()
@@ -135,11 +138,11 @@ pub fn response_2(x_collect: &Vec<usize>, key: Scalar, m: Scalar, constants: &Ve
 
     let c = PosDemo {
         key: Some(key),
-        x: &x_collect,
+        x: &x,
         m: Some(m),
         constants: &constants,
         yn: &yn,
-        difficulty: difficulty * 4
+        difficulty: difficulty
     };
 
     let proof = create_random_proof(c, &params, &mut rng).unwrap();
@@ -155,9 +158,9 @@ pub fn verify(pvk: PreparedVerifyingKey<Bls12>, proof: Proof<Bls12>, key: Scalar
     verify_input.push(m);
 
     for i in 0.. response_count {
-        verify_input.push(hex_to_s(&challenges[index_response[i]]));
+        verify_input.push(bits_to_s(&challenges[index_response[i]]));
     }
-    verify_input.push(x_hash);
+    // verify_input.push(x_hash);
 
     assert!(verify_proof(&pvk, &proof, &verify_input).is_ok());
 }
@@ -175,19 +178,19 @@ mod test {
         
         // pos data len: n = 64n bytes
         const N: usize = 1024;
-        // difficulty: n = 4n bits
-        const DIFFICULTY: usize = 2;
+        // difficulty: bits
+        const DIFFICULTY: usize = 8;
         // the count of challenges verifier sends
         const CHALLENGE_COUNT: usize = 20;
         // the count of responses prover responses
-        const RESPONSE_COUNT: usize = 10;
+        const RESPONSE_COUNT: usize = 8;
 
         // Prepare shared constants for mimc.
         let constants = (0..MIMC_ROUNDS)
         .map(|_| Scalar::random(&mut rng))
         .collect::<Vec<_>>();
 
-        // If n = 1, the data size is 65B.
+        // If n = 1, the data size is 267B.
         let key: Scalar = Scalar::random(&mut rng);
         let m: Scalar = Scalar::random(&mut rng);
 
@@ -196,9 +199,9 @@ mod test {
         create_pos(N, key, m, &constants).unwrap();
         println!("Create pos: {:?}", start.elapsed());
 
-        // Set difficulty(4 bits) for challenge and response.
+        // Set difficulty(bit) for challenge and response.
         // y1(challenge) = y2(result of mimc)[0..difficulty].
-        println!("Set difficulty: {:?} bits", DIFFICULTY * 4);
+        println!("Set difficulty: {:?} bits", DIFFICULTY);
 
         // Create challenges.
         let start = Instant::now();
