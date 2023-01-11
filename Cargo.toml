@@ -6,13 +6,18 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bitvec = "1"
-rand = "0.8"
-bellman = "0.13.1"
-bls12_381 = "0.7.0"
-ff = "0.12"
-group = "0.12"
-pairing = { version = "0.22", optional = true }
+# bitvec = "1"
+# rand = "0.8"
+# bellman = "0.13.1"
+# bls12_381 = "0.7.0"
+# ff = "0.12"
+# group = "0.12"
+# pairing = { version = "0.22", optional = true }
 
-num-bigint = "0.4"
-num-integer = "0.1.44"
+ark-groth16 = { version = "0.3.0", default-features = false}
+ark-ff = { version = "0.3.0", default-features = false }
+# ark-ec = { version = "0.3.0", default-features = false }
+ark-std = { version = "0.3.0", default-features = false }
+ark-relations = { version = "0.3.0", default-features = false}
+ark-r1cs-std = { version = "0.3.0", default-features = false, optional = true }
+ark-bls12-381 = { version = "0.3.0", default-features = false, features = ["curve"] }
