@@ -1,5 +1,5 @@
 use std::{fs::File, io::Write};
-use rand::{thread_rng, Rng};
+use ark_std::{rand::Rng, test_rng};
 
 pub fn padding(data: &Vec<u8>, n: usize) -> Vec<u8> {
     let mut res = vec![];
@@ -37,7 +37,7 @@ pub fn vecu8_xor(left: &Vec<u8>, right: &Vec<u8>) -> Vec<u8> {
 pub fn write_file(n: usize, dir: &str) -> std::io::Result<()> {
     let mut file = File::create(dir).expect("Create file failed!");
     
-    let mut rng = thread_rng();
+    let mut rng = test_rng();
     const CHARSET: &[u8] = b"0123456789abcdef";
     for _ in 0..n {
         file.write_all(
@@ -50,24 +50,17 @@ pub fn write_file(n: usize, dir: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    
+#[test]
+fn test_data() {
     const DATA_DIR: &str = r"src\data.txt";
+    let n = 1024 * 1024;
+    write_file(n, DATA_DIR).unwrap();
+}
 
-    #[test]
-    fn test_data() {
-        let n = 1024 * 1024;
-        write_file(n, DATA_DIR).unwrap();
-    }
-
-    #[test]
-    fn test_vecu8_xor() {
-        let left = vec![1, 1, 1];
-        let right = vec![1, 1, 1];
-        let res = vecu8_xor(&left, &right);
-        println!("{:?}", res);
-    }
+#[test]
+fn test_vecu8_xor() {
+    let left = vec![1, 1, 1];
+    let right = vec![1, 1, 1];
+    let res = vecu8_xor(&left, &right);
+    println!("{:?}", res);
 }
