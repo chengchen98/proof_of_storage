@@ -1,15 +1,3 @@
-#![warn(unused)]
-#![deny(
-    trivial_casts,
-    trivial_numeric_casts,
-    variant_size_differences,
-    stable_features,
-    non_shorthand_field_patterns,
-    renamed_and_removed_lints,
-    private_in_public,
-    unsafe_code
-)]
-
 // Bring in some tools for using pairing-friendly curves
 // We're going to use the BLS12-381 pairing-friendly elliptic curve.
 // For randomness (during paramgen and proof generation)
@@ -17,45 +5,15 @@ use ark_ff::Field;
 
 // We'll use these interfaces to construct our circuit.
 use ark_relations::{
-    lc, ns,
+    lc,
     r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError, Variable},
 };
 
-const MIMC_ROUNDS: usize = 322;
-
-/// This is an implementation of MiMC, specifically a
-/// variant named `LongsightF322p3` for BLS12-381.
-/// See http://eprint.iacr.org/2016/492 for more
-/// information about this construction.
-///
-/// ```
-/// function LongsightF322p3(xL ⦂ Fp, xR ⦂ Fp) {
-///     for i from 0 up to 321 {
-///         xL, xR := xR + (xL + Ci)^3, xL
-///     }
-///     return xL
-/// }
-/// ```
-pub fn mimc_vde<F: Field>(mut xl: F, mut xr: F, constants: &[F]) -> F {
-    assert_eq!(constants.len(), MIMC_ROUNDS);
-
-    for i in 0..MIMC_ROUNDS {
-        let mut tmp1 = xl;
-        tmp1.add_assign(&constants[i]);
-        let mut tmp2 = tmp1;
-        tmp2.square_in_place();
-        tmp2.mul_assign(&tmp1);
-        tmp2.add_assign(&xr);
-        xr = xl;
-        xl = tmp2;
-    }
-
-    xl
-}
+const MIMC_DF_ROUNDS: usize = 322;
 
 /// This is our demo circuit for proving knowledge of the
 /// preimage of a MiMC hash invocation.
-pub struct MiMCVdeDemo<'a, F: Field> {
+pub struct MiMCDFDemo<'a, F: Field> {
     xl: Option<F>,
     xr: Option<F>,
     constants: &'a [F],
@@ -64,24 +22,20 @@ pub struct MiMCVdeDemo<'a, F: Field> {
 /// Our demo circuit implements this `Circuit` trait which
 /// is used during paramgen and proving in order to
 /// synthesize the constraint system.
-impl<'a, F: Field> ConstraintSynthesizer<F> for MiMCVdeDemo<'a, F> {
+impl<'a, F: Field> ConstraintSynthesizer<F> for MiMCDFDemo<'a, F> {
     fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
-        assert_eq!(self.constants.len(), MIMC_ROUNDS);
+        assert_eq!(self.constants.len(), MIMC_DF_ROUNDS);
 
         // Allocate the first component of the preimage.
         let mut xl_value = self.xl;
-        let mut xl =
-            cs.new_witness_variable(|| xl_value.ok_or(SynthesisError::AssignmentMissing))?;
+        let mut xl = cs.new_witness_variable(|| xl_value.ok_or(SynthesisError::AssignmentMissing))?;
 
         // Allocate the second component of the preimage.
         let mut xr_value = self.xr;
-        let mut xr =
-            cs.new_witness_variable(|| xr_value.ok_or(SynthesisError::AssignmentMissing))?;
+        let mut xr = cs.new_witness_variable(|| xr_value.ok_or(SynthesisError::AssignmentMissing))?;
 
-        for i in 0..MIMC_ROUNDS {
+        for i in 0..MIMC_DF_ROUNDS {
             // xL, xR := xR + (xL + Ci)^3, xL
-            let ns = ns!(cs, "round");
-            let cs = ns.cs();
 
             // tmp = (xL + Ci)^2
             let tmp_value = xl_value.map(|mut e| {
@@ -89,8 +43,7 @@ impl<'a, F: Field> ConstraintSynthesizer<F> for MiMCVdeDemo<'a, F> {
                 e.square_in_place();
                 e
             });
-            let tmp =
-                cs.new_witness_variable(|| tmp_value.ok_or(SynthesisError::AssignmentMissing))?;
+            let tmp = cs.new_witness_variable(|| tmp_value.ok_or(SynthesisError::AssignmentMissing))?;
 
             cs.enforce_constraint(
                 lc!() + xl + (self.constants[i], Variable::One),
@@ -108,7 +61,7 @@ impl<'a, F: Field> ConstraintSynthesizer<F> for MiMCVdeDemo<'a, F> {
                 e
             });
 
-            let new_xl = if i == (MIMC_ROUNDS - 1) {
+            let new_xl = if i == (MIMC_DF_ROUNDS - 1) {
                 // This is the last round, xL is our image and so
                 // we allocate a public input.
                 cs.new_input_variable(|| new_xl_value.ok_or(SynthesisError::AssignmentMissing))?
@@ -142,6 +95,7 @@ fn test_mimc_vde() {
     use ark_std::rand::Rng;
     use ark_std::test_rng;
     use ark_bls12_381::{Fr, Bls12_381};
+    use crate::common::mimc_df::mimc_df;
 
     // We're going to use the Groth proving system.
     use ark_groth16::{
@@ -153,13 +107,13 @@ fn test_mimc_vde() {
     let rng = &mut test_rng();
 
     // Generate the MiMC round constants
-    let constants = (0..MIMC_ROUNDS).map(|_| rng.gen()).collect::<Vec<_>>();
+    let constants = (0..MIMC_DF_ROUNDS).map(|_| rng.gen()).collect::<Vec<_>>();
 
     println!("Creating parameters...");
 
     // Create parameters for our circuit
     let params = {
-        let c = MiMCVdeDemo::<Fr> {
+        let c = MiMCDFDemo::<Fr> {
             xl: None,
             xr: None,
             constants: &constants,
@@ -188,7 +142,7 @@ fn test_mimc_vde() {
         // Generate a random preimage and compute the image
         let xl = rng.gen();
         let xr = rng.gen();
-        let image = mimc_vde(xl, xr, &constants);
+        let image = mimc_df(xl, xr, &constants);
 
         // proof_vec.truncate(0);
 
@@ -196,7 +150,7 @@ fn test_mimc_vde() {
         {
             // Create an instance of our circuit (with the
             // witness)
-            let c = MiMCVdeDemo {
+            let c = MiMCDFDemo {
                 xl: Some(xl),
                 xr: Some(xr),
                 constants: &constants,

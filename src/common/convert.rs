@@ -15,6 +15,44 @@ pub fn bits_to_fr(x: &str) -> Fr {
     x
 }
 
+pub fn vecu8_to_bits(x: &Vec<u8>) -> Vec<bool> {
+    //! Convert vec<u8> to binary expression.
+    let mut res = vec![];
+    for i in 0..x.len() {
+        let mut xi = x[i];
+        let mut cur = vec![];
+        for _ in 0..8 {
+            if xi % 2 == 1 {
+                cur.push(true);
+            }
+            else {
+                cur.push(false);
+            }
+            xi /= 2;
+        }
+        cur.reverse();
+        res.append(&mut cur);
+    }
+    res
+}
+
+pub fn bits_to_vecu8(x: &Vec<bool>) -> Vec<u8> {
+    //! Convert binary expression to vec<u8>.
+    let mut res = vec![];
+    for i in (0..x.len()).step_by(8) {
+        let mut cur = 0;
+        let mut base = 128;
+        for j in 0..8 {
+            if x[i + j] == true {
+                cur += base;
+            }
+            base /= 2;
+        }
+        res.push(cur);
+    }
+    res
+}
+
 #[test]
 fn test_fr_to_bits() {
     let x = Fr::from(1);
@@ -27,4 +65,13 @@ fn test_bits_to_fr() {
     let x_bits= "1100";
     let x = bits_to_fr(x_bits);
     println!("{:?}", x);
+}
+
+#[test]
+fn test_vecu8_to_bits() {
+    let x = vec![1, 2];
+    let res = vecu8_to_bits(&x);
+    println!("{:?}", res);
+    let y = bits_to_vecu8(&res);
+    println!("{:?}", y);
 }

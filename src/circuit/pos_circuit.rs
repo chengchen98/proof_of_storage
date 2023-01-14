@@ -4,7 +4,8 @@ use ark_relations::{
     r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError, Variable},
 };
 
-pub const MIMC_ROUNDS: usize = 322;
+pub const MIMC_DF_ROUNDS: usize = 322;
+pub const MIMC_HASH_ROUNDS: usize = 10;
 
 // y = mimc_vde(key + x, m)
 // yn = y
@@ -12,15 +13,16 @@ pub struct PosDemo<'a, F: Field> {
     pub key: Option<F>, // verify input 1
     pub x: &'a [Option<F>],
     pub m: Option<F>, // verify input 2
-    pub constants: &'a [F],
+    pub df_constants: &'a [F],
     pub y_bits: &'a [Option<[Option<F>; 256]>],
     pub yn: &'a [Option<F>], // verify input 3
-    pub difficulty: usize
+    pub difficulty: usize,
+    pub hash_constants: &'a [F] // verify input 4
 }
 
 impl<'a, F: Field> ConstraintSynthesizer<F> for PosDemo<'a, F> {
     fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
-        assert_eq!(self.constants.len(), MIMC_ROUNDS);
+        assert_eq!(self.df_constants.len(), MIMC_DF_ROUNDS);
         assert_eq!(self.x.len(), self.yn.len());
 
         let key_val = self.key;
@@ -54,20 +56,20 @@ impl<'a, F: Field> ConstraintSynthesizer<F> for PosDemo<'a, F> {
             let mut xr = cs.new_witness_variable(|| xr_val.ok_or(SynthesisError::AssignmentMissing))?;
 
             // Start to create single mimc proof: yi = mimc(key + xi, m)
-            for j in 0..MIMC_ROUNDS {
+            for j in 0..MIMC_DF_ROUNDS {
                 let tmp_val = xl_val.map(|mut e| {
-                    e.add_assign(&self.constants[j]);
+                    e.add_assign(&self.df_constants[j]);
                     e.square()
                 });
                 let tmp = cs.new_witness_variable(|| tmp_val.ok_or(SynthesisError::AssignmentMissing))?;
                 cs.enforce_constraint(
-                    lc!() + xl + (self.constants[j], Variable::One),
-                    lc!() + xl + (self.constants[j], Variable::One),
+                    lc!() + xl + (self.df_constants[j], Variable::One),
+                    lc!() + xl + (self.df_constants[j], Variable::One),
                     lc!() + tmp,
                 )?;
     
                 let new_xl_val = xl_val.map(|mut e| {
-                    e.add_assign(&self.constants[j]);
+                    e.add_assign(&self.df_constants[j]);
                     e.mul_assign(&tmp_val.unwrap());
                     e.add_assign(&xr_val.unwrap());
                     e
@@ -75,12 +77,12 @@ impl<'a, F: Field> ConstraintSynthesizer<F> for PosDemo<'a, F> {
                 let new_xl = cs.new_witness_variable(|| new_xl_val.ok_or(SynthesisError::AssignmentMissing))?;
                 cs.enforce_constraint(
                     lc!() + tmp,
-                    lc!() + xl + (self.constants[j], Variable::One),
+                    lc!() + xl + (self.df_constants[j], Variable::One),
                     lc!() + new_xl - xr,
                 )?;
     
                 // Start to create proof of yn = y[0..n]
-                if j == MIMC_ROUNDS - 1 {
+                if j == MIMC_DF_ROUNDS - 1 {
                     let y_bits_val = self.y_bits[i];
                     {
                         let mut y_val = Some(F::zero());
@@ -178,112 +180,138 @@ impl<'a, F: Field> ConstraintSynthesizer<F> for PosDemo<'a, F> {
                 xl_val = new_xl_val;
             }
         }
-        
-        // let mut x_val = S::from_str_vartime("0");
-        // let mut x = cs.alloc(
-        //     || "x",
-        //     || x_val.ok_or(SynthesisError::AssignmentMissing),
-        // )?;
 
-        // for i in 0..self.x.len() {
-        //     // x += self.x[i];
-        //     let xi_val = S::from_str_vartime(&self.x[i].to_string());
-        //     let xi = cs.alloc(
-        //         || "xi",
-        //         || xi_val.ok_or(SynthesisError::AssignmentMissing),
-        //     )?;
+        let mut res_val  = self.key;
+        let mut res = cs.new_witness_variable(|| res_val.ok_or(SynthesisError::AssignmentMissing))?;
 
-        //     let newx_val = xi_val.map(|mut e| {
-        //         e.add_assign(&x_val.unwrap());
-        //         e
-        //     });
-        //     let newx = cs.alloc(
-        //         || "newx",
-        //         || newx_val.ok_or(SynthesisError::AssignmentMissing),
-        //     )?;
-        //     cs.enforce(
-        //         || "newx = x + xi",
-        //         |lc| lc + xi + x,
-        //         |lc| lc + CS::one(),
-        //         |lc| lc + newx,
-        //     );
+        // Start to compute mimc hash.
+        for i in 0..self.x.len() {
+            let x_in_val= self.x[i];
+            let x_in = cs.new_witness_variable(|| x_in_val.ok_or(SynthesisError::AssignmentMissing))?;
 
-        //     x = newx;
-        //     x_val = newx_val;
+            let key_val = res_val;
+            let key = cs.new_witness_variable(|| key_val.ok_or(SynthesisError::AssignmentMissing))?;    
+            
+            let mut h_val = Some(F::zero());
+            let mut h = cs.new_witness_variable(|| h_val.ok_or(SynthesisError::AssignmentMissing))?;
 
-        //     // x_hash = mimc(x)
-        //     if i == self.x.len() - 1 {
-        //         let mut xl_val = x_val;
-        //         let mut xl = cs.alloc(
-        //             || "preimage xl",
-        //             || xl_val.ok_or(SynthesisError::AssignmentMissing),
-        //         )?;
+            // Create every single mimc hash.
+            for j in 0..MIMC_HASH_ROUNDS {
+                let t_val;
+                let t;
+                if j == 0 {
+                    // t = x[i] + key
+                    t_val = x_in_val.map(|mut e| {
+                        e.add_assign(&key_val.unwrap());
+                        e
+                    });
+                    t = cs.new_witness_variable(|| t_val.ok_or(SynthesisError::AssignmentMissing))?;
+                    cs.enforce_constraint(
+                        lc!() + x_in + key,
+                        lc!() + Variable::One,
+                        lc!() + t
+                    )?;
+                }
+                else {
+                    // t = h + key + constants[j]
+                    t_val = h_val.map(|mut e| {
+                        e.add_assign(&key_val.unwrap());
+                        e.add_assign(&self.hash_constants[j]);
+                        e
+                    });
+                    t = cs.new_witness_variable(|| t_val.ok_or(SynthesisError::AssignmentMissing))?;
+                    cs.enforce_constraint(
+                        lc!() + h + key + (self.hash_constants[j], Variable::One),
+                        lc!() + Variable::One,
+                        lc!() + t
+                    )?;
+                }
 
-        //         let mut xr_val = x_val;
-        //         let mut xr = cs.alloc(
-        //             || "preimage xr",
-        //             || xr_val.ok_or(SynthesisError::AssignmentMissing),
-        //         )?;
+                // t2 = t * t
+                let t2_val = t_val.map(|mut e| {
+                    e.square_in_place();
+                    e
+                });
+                let t2 = cs.new_witness_variable(|| t2_val.ok_or(SynthesisError::AssignmentMissing))?;
+                cs.enforce_constraint(
+                    lc!() + t,
+                    lc!() + t,
+                    lc!() + t2
+                )?;
+                
+                // t4 = t2 * t2
+                let t4_val = t2_val.map(|mut e| {
+                    e.square_in_place();
+                    e
+                });
+                let t4 = cs.new_witness_variable(|| t4_val.ok_or(SynthesisError::AssignmentMissing))?;
+                cs.enforce_constraint(
+                    lc!() + t2,
+                    lc!() + t2,
+                    lc!() + t4
+                )?;
+                
+                // t6 = t4 * t2
+                let t6_val = t4_val.map(|mut e| {
+                    e.mul_assign(&t2_val.unwrap());
+                    e
+                });
+                let t6 = cs.new_witness_variable(|| t6_val.ok_or(SynthesisError::AssignmentMissing))?;
+                cs.enforce_constraint(
+                    lc!() + t4,
+                    lc!() + t2,
+                    lc!() + t6
+                )?;
+                
+                // t7 = t6 * t
+                let t7_val = t6_val.map(|mut e| {
+                    e.mul_assign(&t_val.unwrap());
+                    e
+                });
+                let t7 = cs.new_witness_variable(|| t7_val.ok_or(SynthesisError::AssignmentMissing))?;
+                cs.enforce_constraint(
+                    lc!() + t6,
+                    lc!() + t,
+                    lc!() + t7
+                )?;
 
-        //         for j in 0..MIMC_ROUNDS {
-        //             // xL, xR := xR + (xL + Ci)^3, xL
+                h = t7;
+                h_val = t7_val;
+            }
 
-        //             // tmp = (xL + Ci)^2
-        //             let tmp_val = xl_val.map(|mut e| {
-        //                 e.add_assign(&self.constants[j]);
-        //                 e.square()
-        //             });
-        //             let tmp = cs.alloc(
-        //                 || "tmp",
-        //                 || tmp_val.ok_or(SynthesisError::AssignmentMissing),
-        //             )?;
-        //             cs.enforce(
-        //                 || "tmp = (xL + Ci)^2",
-        //                 |lc| lc + xl + (self.constants[j], CS::one()),
-        //                 |lc| lc + xl + (self.constants[j], CS::one()),
-        //                 |lc| lc + tmp,
-        //             );
+            // new_h = h + key
+            let new_h_val = h_val.map(|mut e| {
+                e.add_assign(&key_val.unwrap());
+                e
+            });
+            let new_h = cs.new_witness_variable(|| new_h_val.ok_or(SynthesisError::AssignmentMissing))?;
+            cs.enforce_constraint(
+                lc!() + h + key,
+                lc!() + Variable::One,
+                lc!() + new_h
+            )?;
 
-        //             // new_xL = xR + (xL + Ci)^3
-        //             // new_xL = xR + tmp * (xL + Ci)
-        //             // new_xL - xR = tmp * (xL + Ci)
-        //             let new_xl_val = xl_val.map(|mut e| {
-        //                 e.add_assign(&self.constants[j]);
-        //                 e.mul_assign(&tmp_val.unwrap());
-        //                 e.add_assign(&xr_val.unwrap());
-        //                 e
-        //             });
-        //             let new_xl = if j == (MIMC_ROUNDS - 1) {
-        //                 // This is the last round, xL is our image and so
-        //                 // we allocate a public input.
-        //                 cs.alloc_input(
-        //                     || "image",
-        //                     || new_xl_val.ok_or(SynthesisError::AssignmentMissing),
-        //                 )?
-        //             } else {
-        //                 cs.alloc(
-        //                     || "new_xl",
-        //                     || new_xl_val.ok_or(SynthesisError::AssignmentMissing),
-        //                 )?
-        //             };
+            // new_res = res + x[i]
+            let new_res_val = res_val.map(|mut e| {
+                e.add_assign(&x_in_val.unwrap());
+                e.add_assign(&new_h_val.unwrap());
+                e
+            });
+            let new_res = if i == (self.x.len() - 1) {
+                cs.new_input_variable(|| new_res_val.ok_or(SynthesisError::AssignmentMissing))?
+            }
+            else {
+                cs.new_witness_variable(|| new_res_val.ok_or(SynthesisError::AssignmentMissing))?
+            };
+            cs.enforce_constraint(
+                lc!() + res + x_in + new_h,
+                lc!() + Variable::One,
+                lc!() + new_res
+            )?;
 
-        //             cs.enforce(
-        //                 || "new_xL = xR + (xL + Ci)^3",
-        //                 |lc| lc + tmp,
-        //                 |lc| lc + xl + (self.constants[j], CS::one()),
-        //                 |lc| lc + new_xl - xr,
-        //             );
-
-        //             // xR = xL
-        //             xr = xl;
-        //             xr_val = xl_val;
-
-        //             // xL = new_xL
-        //             xl = new_xl;
-        //             xl_val = new_xl_val;
-        //         }
-        //     }
-        // }
+            res = new_res;
+            res_val = new_res_val;
+        }
 
         Ok(())
     }
