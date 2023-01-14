@@ -1,16 +1,20 @@
 // use std::fs::File;
 // use std::io::{Seek, Read, SeekFrom, Write};
 
-// use bls12_381::Scalar;
+// use ark_bls12_381::Fr;
+// use ark_ff::{PrimeField, BigInteger256, BigInteger};
 
 // use super::depend::{long_depend, short_depend};
+// use crate::common::convert::bits_to_vecu8;
 // use crate::common::data::vecu8_xor;
-// use crate::common::mimc_hash::mimc_hash;
-// use crate::vde::vde::{vde, vde_inv};
+// use crate::common::mimc_hash::mimc7_hash;
+// // use crate::vde::vde::{vde, vde_inv};
 
 // pub const DATA_DIR: &str = r"src\seal_data.txt";
 // pub const L2: usize = 256;
 // pub const L1: usize = 64;
+// pub const SEAL_ROUND: usize = 3;
+// pub const MIMC_HASH_ROUNDS: usize = 10;
 
 // pub fn create_depend(block_num2: usize, block_num1: usize, index_count_l: usize, index_count_s: usize, mode_l: usize, mode_s: usize) -> (Vec<Vec<Vec<usize>>>, Vec<Vec<Vec<usize>>>) {
 //     //! Collect all the depended indexs of every data blocks.
@@ -31,7 +35,7 @@
 //     (index_l_collect, index_s_collect)
 // }
 
-// pub fn seal(round: usize, file: &mut File, block_num2: usize, block_num1: usize, index_l_collect: &Vec<Vec<Vec<usize>>>, index_s_collect: &Vec<Vec<Vec<usize>>>, constants: &Vec<Scalar>, key: Scalar, mode_vde: &str) {
+// pub fn seal(round: usize, file: &mut File, block_num2: usize, block_num1: usize, index_l_collect: &Vec<Vec<Vec<usize>>>, index_s_collect: &Vec<Vec<Vec<usize>>>, constants: &Vec<Fr>, hash_key: Fr, vde_key: Fr, mode_vde: &str) {
 //     //! Seal data block by block for n round.
 //     for _ in 0..round {
 //         let mut buf = [0; L1];
@@ -54,16 +58,27 @@
 //                     file.read(&mut buf).unwrap();
 //                     depend_data.append(&mut buf.to_vec());
 //                 }
-                
+
+//                 let mut depend_hash = vec![];
+//                 {
+//                     for i in (0..depend_data.len()).step_by(32) {
+//                         let x_in = Fr::from_le_bytes_mod_order(&depend_data[i .. i + 32]);
+//                         let res = mimc7_hash(x_in, hash_key, &constants);
+//                         let res: BigInteger256 = res.into();
+//                         let res = res.to_bits_le();
+//                         let mut res = bits_to_vecu8(&res);
+//                         depend_hash.append(&mut res);
+//                     }
+//                 }
+
 //                 file.seek(SeekFrom::Start((i * L2 + j * L1).try_into().unwrap())).unwrap();
 //                 file.read(&mut buf).unwrap();
 //                 let cur_block = buf.to_vec();
 
-//                 depend_data = mimc_hash(&depend_data, &constants);
-//                 depend_data = vecu8_xor(&depend_data, &cur_block);
-//                 let new_block = vde(&depend_data, key, mode_vde);
+//                 let data_xor = vecu8_xor(&depend_hash, &cur_block);
+//                 // let new_block = vde(&depend_data, vde_key, mode_vde);
 
-//                 buf.copy_from_slice(&new_block);
+//                 buf.copy_from_slice(&data_xor);
 //                 file.seek(SeekFrom::Start((i * L2 + j * L1).try_into().unwrap())).unwrap();
 //                 file.write_all(&buf).unwrap();
 //             }
@@ -71,7 +86,7 @@
 //     }
 // }
 
-// pub fn unseal(round: usize, file: &mut File, block_num2: usize, block_num1: usize, index_l_collect: &Vec<Vec<Vec<usize>>>, index_s_collect: &Vec<Vec<Vec<usize>>>, constants: &Vec<Scalar>, key: Scalar, mode_vde: &str) {
+// pub fn unseal(round: usize, file: &mut File, block_num2: usize, block_num1: usize, index_l_collect: &Vec<Vec<Vec<usize>>>, index_s_collect: &Vec<Vec<Vec<usize>>>, constants: &Vec<Fr>, hash_key: Fr, vde_key: Fr, mode_vde: &str) {
 //     //! Unseal data block by block for n round.
 //     for _ in 0..round {
 //         let mut buf = [0u8; L1];
@@ -92,13 +107,24 @@
 //                     depend_data.append(&mut buf.to_vec());
 //                 }
                 
+//                 let mut depend_hash = vec![];
+//                 {
+//                     for i in (0..depend_data.len()).step_by(32) {
+//                         let x_in = Fr::from_le_bytes_mod_order(&depend_data[i .. i + 32]);
+//                         let res = mimc7_hash(x_in, hash_key, &constants);
+//                         let res: BigInteger256 = res.into();
+//                         let res = res.to_bits_le();
+//                         let mut res = bits_to_vecu8(&res);
+//                         depend_hash.append(&mut res);
+//                     }
+//                 }
+                
 //                 file.seek(SeekFrom::Start((i * L2 + j * L1).try_into().unwrap())).unwrap();
 //                 file.read(&mut buf).unwrap();
 //                 let cur_block = buf.to_vec();
 
-//                 depend_data = mimc_hash(&depend_data, &constants);
-//                 let mut new_block = vde_inv(&cur_block, key, mode_vde);
-//                 new_block = vecu8_xor(&new_block, &depend_data);
+//                 // let mut new_block = vde_inv(&cur_block, vde_key, mode_vde);
+//                 let new_block = vecu8_xor(&cur_block, &depend_hash);
 
 //                 buf.copy_from_slice(&new_block);
 //                 file.seek(SeekFrom::Start((i * L2 + j * L1).try_into().unwrap())).unwrap();
@@ -114,16 +140,16 @@
 //     use std::fs::OpenOptions;
 //     use std::time::Instant;
 
-//     use bls12_381::Scalar;
-//     use ff::Field;
-//     use rand::thread_rng;
+//     use ark_bls12_381::Fr;
+//     use ark_ff::Field;
+//     use ark_std::{rand::Rng, test_rng};
 
 //     use super::*;
 //     use crate::common::data::write_file;
 
 //     #[test]
 //     fn test() {
-//         let mut rng = thread_rng();
+//         let mut rng = &mut test_rng();
 
 //         // data len: n = n bytes
 //         let data_len: usize = 1024 * 1024;
@@ -146,22 +172,20 @@
 //         let mode_s: usize = 1;
 //         let mode_vde: &str = "sloth";
 
-//         const SEAL_ROUND: usize = 3;
-//         const MIMC_ROUNDS: usize = 322;
-
-//         let constants = (0..MIMC_ROUNDS)
-//             .map(|_| Scalar::random(&mut rng))
+//         let constants = (0..MIMC_HASH_ROUNDS)
+//             .map(|_| rng.gen())
 //             .collect::<Vec<_>>();
-//         let key = Scalar::random(&mut rng);
+//         let vde_key = rng.gen();
+//         let hash_key = rng.gen();
 
 //         let (index_l_collect, index_s_collect) = create_depend(block_num2, block_num1, index_count_l, index_count_s, mode_l, mode_s);
         
 //         let start = Instant::now();
-//         seal(SEAL_ROUND, &mut file, block_num2, block_num1, &index_l_collect, &index_s_collect, &constants, key, mode_vde);
+//         seal(SEAL_ROUND, &mut file, block_num2, block_num1, &index_l_collect, &index_s_collect, &constants, hash_key, vde_key, mode_vde);
 //         println!("Seal: {:?}", start.elapsed());
 
 //         let start = Instant::now();
-//         unseal(SEAL_ROUND, &mut file, block_num2, block_num1, &index_l_collect, &index_s_collect, &constants, key, mode_vde);
+//         unseal(SEAL_ROUND, &mut file, block_num2, block_num1, &index_l_collect, &index_s_collect, &constants, hash_key, vde_key, mode_vde);
 //         println!("Unseal: {:?}", start.elapsed());
 
 //     }

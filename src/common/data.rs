@@ -58,9 +58,9 @@ fn test_data() {
 }
 
 #[test]
-fn test_vecu8_xor() {
+fn test_bits_xor() {
     let left = vec![1, 1, 1];
-    let right = vec![1, 1, 1];
+    let right = vec![0, 0, 0];
     let res = vecu8_xor(&left, &right);
     println!("{:?}", res);
 }

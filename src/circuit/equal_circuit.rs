@@ -8,7 +8,7 @@ use ark_relations::{
 
 pub const INPUT_SIZE: usize = 256;
 
-/// Prove two equations
+/// Prove two equations: 
 ///
 /// x2 = x_bit
 /// 

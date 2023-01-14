@@ -1,31 +1,64 @@
-// use bls12_381::Scalar;
+use ark_ff::Field;
 
-// use crate::common::data::padding;
-// use crate::circuit::mimc_circuit::mimc;
+const MIMC_HASH_ROUNDS: usize = 10;
 
-// pub const MIMC_ROUNDS: usize = 322;
+pub fn mimc7_hash<F: Field>(x_in: F, key: F, constants: &[F]) -> F {
+    let mut h: F = F::zero();
+    for i in 0..MIMC_HASH_ROUNDS {
+        let mut t: F;
+        if i == 0 {
+            t = x_in.clone();
+            t.add_assign(key);
+        } else {
+            t = h.clone(); 
+            t.add_assign(&key);
+            t.add_assign(&constants[i]);
+        }
+        let mut t2 = t.clone();
+        t2.square_in_place();
+        let mut t7 = t2.clone();
+        t7.square_in_place();
+        t7.mul_assign(&t2);
+        t7.mul_assign(&t);
+        h = t7.clone();
+    }
+    h.add_assign(&key);
+    h
+}
 
-// pub fn mimc_hash(input: &Vec<u8>, constants: &Vec<Scalar>) -> Vec<u8> {
-//     //! Provide a method to compute mimc hash.
-//     //! 
-//     //! input: 64n
-//     //! 
-//     //! output: 32n
-//     let input = padding(&input, 64);
-//     let mut output = vec![];
+pub fn multi_mimc7_hash<F: Field>(x_inputs: &Vec<F>, key: F, constants: &[F]) -> F {
+    let mut r = key.clone();
+    for i in 0..x_inputs.len() {
+        let h = mimc7_hash(x_inputs[i], r, constants);
+        r.add_assign(&x_inputs[i]);
+        r.add_assign(&h);
+    }
+    r
+}
 
-//     let mut buf_xl = [0u8; 32];
-//     let mut buf_xr = [0u8; 32];
-//     for i in (0..input.len()).step_by(64) {
-//         buf_xl.copy_from_slice(&input[i .. i + 32]);
-//         buf_xr.copy_from_slice(&input[i + 32 .. i + 64]);
-//         let xl = Scalar::from_bytes(&buf_xl).unwrap();
-//         let xr = Scalar::from_bytes(&buf_xr).unwrap();
-//         let image = mimc(xl, xr, &constants);
+#[test]
+fn test_mimc7_hash() {
+    use ark_bls12_381::Fr;
+    use ark_std::rand::Rng;
+    use ark_std::test_rng;
 
-//         output.append(&mut image.to_bytes().to_vec());
-//     }
+    let rng = &mut test_rng();
+    let x_in: Fr = rng.gen();
+    let key: Fr = rng.gen();
+    let constants = (0..MIMC_HASH_ROUNDS).map(|_| rng.gen()).collect::<Vec<_>>();
+    let res = mimc7_hash(x_in, key, &constants);
+    println!("{:?}", res);
+}
+#[test]
+fn test_multi_mimc7_hash() {
+    use ark_bls12_381::Fr;
+    use ark_std::rand::Rng;
+    use ark_std::test_rng;
 
-//     output
-// }
-
+    let rng = &mut test_rng();
+    let x_inputs = (0..3).map(|_| rng.gen()).collect::<Vec<Fr>>();
+    let key = rng.gen();
+    let constants = (0..MIMC_HASH_ROUNDS).map(|_| rng.gen()).collect::<Vec<_>>();
+    let res = multi_mimc7_hash(&x_inputs, key, &constants);
+    println!("{:?}", res);
+}

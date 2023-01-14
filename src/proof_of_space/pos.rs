@@ -18,24 +18,24 @@ use ark_groth16::{
     create_random_proof, generate_random_parameters, prepare_verifying_key, verify_proof,
 };
 
-// use crate::common::convert::{bits_to_s, s_to_bits};
-use crate::circuit::mimc_vde_circuit::mimc_vde;
+use crate::common::mimc_df::mimc_df;
 use crate::circuit::pos_circuit::PosDemo;
-use crate::common::convert::bits_to_fr;
-use crate::common::convert::fr_to_bits;
+use crate::common::convert::{bits_to_fr, fr_to_bits};
+use crate::common::mimc_hash::multi_mimc7_hash;
 
-pub const DATA_DIR: &str = r"src\proof_of_space\pos_data.txt";
-pub const MIMC_ROUNDS: usize = 322;
+const DATA_DIR: &str = r"src\proof_of_space\pos_data.txt";
+pub const MIMC_DF_ROUNDS: usize = 322;
+pub const MIMC_HASH_ROUNDS: usize = 10;
 
-pub fn create_pos(n: usize, key: Fr, m: Fr, constants: &Vec<Fr>) -> std::io::Result<()> {
+pub fn create_pos(n: usize, key: Fr, m: Fr, df_constants: &Vec<Fr>) -> std::io::Result<()> {
     //! Prover: create proof-of-space by computing mimc function n times using incremental x.
     //! 
-    //! y = mimc(key + x, m)
+    //! y = mimc_df(key + x, m)
     let mut file = File::create(DATA_DIR).expect("Create file failed...");
 
     // Write y by line
     for x in 0..n {
-        let y = mimc_vde(Fr::from_str(&x.to_string()).unwrap().add(&key), m, &constants); // compute mimc
+        let y = mimc_df(Fr::from_str(&x.to_string()).unwrap().add(&key), m, &df_constants); // compute mimc
         let y = fr_to_bits(y);
         file.write_all(&y.as_bytes()).expect("Write failed!");
         file.write_all("\n".as_bytes()).expect("Write failed!");
@@ -82,15 +82,14 @@ pub fn prepare_hashmap(difficulty: usize) -> HashMap<String, usize> {
     y_x_map
 }
 
-pub fn response_1(challenges: &Vec<String>, y_x_map: HashMap<String, usize>, constants: &Vec<Fr>, response_count: usize) -> (Vec<usize>, Vec<usize>, Fr) {
+pub fn response_1(challenges: &Vec<String>, y_x_map: HashMap<String, usize>, key: Fr, hash_constants: &Vec<Fr>, response_count: usize) -> (Vec<Fr>, Vec<usize>, Fr) {
     //! Prover: choose samples of challenges
     //! 
-    //! reseponse: (1) the index collection of samples; (2) the hash of the x_sum of samples.
+    //! reseponse: (1) the index collection of samples; (2) the hash of the x_vec of samples.
     //! 
     //! Prover saves the x chosen by himself.
     let mut x_response  = vec![];
     let mut index_response = vec![];
-    let mut x_sum = 0;
     let x_hash_response;
 
     for i in 0..challenges.len() {
@@ -99,9 +98,8 @@ pub fn response_1(challenges: &Vec<String>, y_x_map: HashMap<String, usize>, con
         if y_x_map.contains_key(key) {
             let x = y_x_map.get(key).unwrap().clone();
 
-            x_response.push(x);
+            x_response.push(Fr::from_str(&x.to_string()).unwrap());
             index_response.push(i);
-            x_sum += x;
 
             // Only return RESPONSE_COUNT of challenges if enough.
             if x_response.len() == response_count {
@@ -109,25 +107,26 @@ pub fn response_1(challenges: &Vec<String>, y_x_map: HashMap<String, usize>, con
             }
         }
     }
-    x_hash_response = mimc_vde(Fr::from_str(&x_sum.to_string()).unwrap(), Fr::from_str(&x_sum.to_string()).unwrap(), &constants);
+
+    // input of mimc hash is x vector
+    x_hash_response = multi_mimc7_hash(&x_response, key, &hash_constants);
     (x_response, index_response, x_hash_response)
 }
 
-pub fn response_2(x_response: &Vec<usize>, key: Fr, m: Fr, constants: &Vec<Fr>, index_response: &Vec<usize>, challenges: &Vec<String>, response_count: usize, difficulty: usize) 
+pub fn response_2(x_response: &Vec<Fr>, key: Fr, m: Fr, df_constants: &Vec<Fr>, hash_constants: &Vec<Fr>, index_response: &Vec<usize>, challenges: &Vec<String>, response_count: usize, difficulty: usize) 
 -> (PreparedVerifyingKey<Bls12_381>, Proof<Bls12_381>) {
     //! Prover: create zk-proof
     //! 
-    //! (1) y = mimc(key + x, m); (2) yn = y\[0..n\]; (3) x_hash = mimc(xi + xj + ..)
+    //! (1) y = mimc_df(key + x, m); (2) yn = y\[0..n\]; (3) x_hash = mimc_hash(xi + xj + ..)
     let mut rng = test_rng();
 
     let mut x_collect = vec![];
     let mut y_bits_collect = vec![];
     let mut yn_collect = vec![];
     for i in 0..response_count {
-        let x = Fr::from_str(&x_response[i].to_string()).unwrap();
-        x_collect.push(Some(x));
+        x_collect.push(Some(x_response[i]));
 
-        let y = mimc_vde(x.add(&key), m, &constants);
+        let y = mimc_df(x_response[i].add(&key), m, &df_constants);
         let y: BigInteger256 = y.into();
         let y_bits = y.to_bits_le();
         let mut buf_bits = [None; 256];
@@ -152,32 +151,34 @@ pub fn response_2(x_response: &Vec<usize>, key: Fr, m: Fr, constants: &Vec<Fr>, 
             key: Some(key),
             x: &x_collect,
             m: Some(m),
-            constants: &constants,
+            df_constants: &df_constants,
             y_bits: &y_bits_collect,
             yn: &yn_collect,
-            difficulty: difficulty
+            difficulty: difficulty,
+            hash_constants: &hash_constants
         };
 
         generate_random_parameters::<Bls12_381, _, _>(c, &mut rng).unwrap()
     };
-    
+
     let pvk = prepare_verifying_key(&params.vk);
 
     let c = PosDemo {
         key: Some(key),
         x: &x_collect,
         m: Some(m),
-        constants: &constants,
+        df_constants: &df_constants,
         y_bits: &y_bits_collect,
         yn: &yn_collect,
-        difficulty: difficulty
+        difficulty: difficulty,
+        hash_constants: &hash_constants
     };
 
     let proof = create_random_proof(c, &params, &mut rng).unwrap();
     (pvk, proof)
 }
 
-pub fn verify(pvk: PreparedVerifyingKey<Bls12_381>, proof: Proof<Bls12_381>, key: Fr, m: Fr, challenges: &Vec<String>, index_response: &Vec<usize>, x_hash: Fr, response_count: usize) {
+pub fn verify(pvk: PreparedVerifyingKey<Bls12_381>, proof: Proof<Bls12_381>, key: Fr, m: Fr, challenges: &Vec<String>, index_response: &Vec<usize>, x_hash_response: Fr, response_count: usize) {
     //! Verifier: verify the zk proof by 
     //! 
     //! (1) key; (2) m; (3) challenges and indexs; (4) x_hash
@@ -189,13 +190,13 @@ pub fn verify(pvk: PreparedVerifyingKey<Bls12_381>, proof: Proof<Bls12_381>, key
         let c = &challenges[index_response[i]];
         verify_input.push(bits_to_fr(&c));
     }
-    // verify_input.push(x_hash);
+    verify_input.push(x_hash_response);
 
     assert!(verify_proof(&pvk, &proof, &verify_input).is_ok());
 }
 
 #[test]
-fn test_proof() {
+fn test_pos() {
     use std::time::Instant;
 
     let rng = &mut test_rng();
@@ -207,20 +208,24 @@ fn test_proof() {
     // the count of challenges verifier sends
     const CHALLENGE_COUNT: usize = 20;
     // the count of responses prover responses
-    const RESPONSE_COUNT: usize = 8;
+    const RESPONSE_COUNT: usize = 10;
 
     // Prepare shared constants for mimc.
-    let constants: Vec<Fr> = (0..MIMC_ROUNDS)
+    let df_constants: Vec<Fr> = (0..MIMC_DF_ROUNDS)
     .map(|_| rng.gen())
     .collect::<Vec<_>>();
 
-    // If n = 1, the data size is 267B.
+    let hash_constants: Vec<Fr> = (0..MIMC_HASH_ROUNDS)
+    .map(|_| rng.gen())
+    .collect::<Vec<_>>();
+
+    // If n = 1, the data size is 257B.
     let key: Fr = rng.gen();
     let m: Fr = rng.gen();
 
     // Create the proof of space by computing mimc.
     let start = Instant::now();
-    create_pos(N, key, m, &constants).unwrap();
+    create_pos(N, key, m, &df_constants).unwrap();
     println!("Create pos: {:?}", start.elapsed());
 
     // Set difficulty(bit) for challenge and response.
@@ -235,7 +240,7 @@ fn test_proof() {
     // Response 1
     let start = Instant::now();
     let y_x_map = prepare_hashmap(DIFFICULTY);
-    let (x_response,index_response, x_hash) = response_1(&challenges, y_x_map, &constants, RESPONSE_COUNT);
+    let (x_response, index_response, x_hash_response) = response_1(&challenges, y_x_map, key, &hash_constants, RESPONSE_COUNT);
     assert_eq!(x_response.len(), RESPONSE_COUNT);
     println!("Response 1: {:?}", start.elapsed());
 
@@ -244,11 +249,11 @@ fn test_proof() {
 
     // Response 2
     let start = Instant::now();
-    let (pvk, proof) = response_2(&x_response, key, m,  &constants, &index_response, &challenges, RESPONSE_COUNT, DIFFICULTY);
+    let (pvk, proof) = response_2(&x_response, key, m,  &df_constants,  &hash_constants, &index_response, &challenges, RESPONSE_COUNT, DIFFICULTY);
     println!("Response 2: {:?}", start.elapsed());
     
     // Verify
     let start = Instant::now();
-    verify(pvk, proof, key, m, &challenges, &index_response, x_hash, RESPONSE_COUNT);
+    verify(pvk, proof, key, m, &challenges, &index_response, x_hash_response, RESPONSE_COUNT);
     println!("Verify: {:?}", start.elapsed());
 }
