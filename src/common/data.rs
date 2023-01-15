@@ -2,10 +2,9 @@ use std::{fs::File, io::Write};
 use ark_std::{rand::Rng, test_rng};
 
 pub fn padding(data: &Vec<u8>, n: usize) -> Vec<u8> {
-    let mut res = vec![];
-    if data.len() % n != 0 {
-        res = vec![0u8; n - data.len() % n];
-        res.append(&mut data.clone());
+    let mut res = data.clone();
+    if data.len() < n {
+        res.append(&mut vec![0u8; n - data.len()]);
     }
     res
 }
@@ -48,6 +47,14 @@ pub fn write_file(n: usize, dir: &str) -> std::io::Result<()> {
         ).expect("Write failed!");
     }
     Ok(())
+}
+
+#[test]
+fn test_padding() {
+    let data = vec![1; 10];
+    let data_padding = padding(&data, 20);
+    println!("{:?}", data_padding);
+
 }
 
 #[test]

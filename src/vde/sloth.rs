@@ -1,58 +1,55 @@
-// use std::ops::{Div, Sub, Add};
+use std::ops::{Div, Sub, Add};
+use num_bigint::{BigUint, ToBigUint};
 
-// use num_bigint::{BigInt, ToBigInt};
+pub fn sloth(x: &BigUint, p: &BigUint) -> BigUint {
+    let flag = x.modpow(&p.sub(1.to_biguint().unwrap()).div(2.to_biguint().unwrap()), &p);
+    let mut y;
+    if flag == 1.to_biguint().unwrap() {
+        y = x.modpow(&p.add(1.to_biguint().unwrap()).div(4.to_biguint().unwrap()), &p);
+        if y.clone() % 2.to_biguint().unwrap() == 1.to_biguint().unwrap() {
+            y = &p.sub(y) % p;
+        }
+    }
+    else {
+        let x = &p.sub(x) % p;
+        y = x.modpow(&p.add(1.to_biguint().unwrap()).div(4.to_biguint().unwrap()), &p);
+        if y.clone() % 2.to_biguint().unwrap() == 0.to_biguint().unwrap() {
+            y = &p.sub(y) % p;
+        }
+    }
 
-// pub fn sloth(x: &BigInt, p: &BigInt) -> BigInt {
-//     let flag = x.modpow(&p.sub(1.to_bigint().unwrap()).div(2.to_bigint().unwrap()), p);
-//     let mut y;
-//     if flag == 1.to_bigint().unwrap() {
-//         let yy = &x.modpow(&p.add(1.to_bigint().unwrap()).div(4.to_bigint().unwrap()), p);
-//         if yy % 2 == 1.to_bigint().unwrap() {
-//             y = p.sub(yy) % p;
-//         }
-//     }
-//     else {
-//         let x = (p - x) % p;
-//         y = x.modpow(&p.add(1.to_bigint().unwrap()).div(4.to_bigint().unwrap()), p);
-//         if y % 2 == 0.to_bigint().unwrap() {
-//             y = (p - y) % p;
-//         }
-//     }
+    if y.clone() % 2.to_biguint().unwrap() == 1.to_biguint().unwrap() {
+        return y.add(1.to_biguint().unwrap()) % p;
+    }
+    else {
+        return y.sub(1.to_biguint().unwrap()) % p;
+    }
+}
 
-//     if y % 2 == 1.to_bigint().unwrap() {
-//         return (y + 1) % p;
-//     }
-//     else {
-//         return (y - 1) % p;
-//     }
-// }
+pub fn sloth_inv(y: &BigUint, p: &BigUint) -> BigUint {
+    let x;
+    if y % 2.to_biguint().unwrap() == 1.to_biguint().unwrap() {
+        x = &y.add(1.to_biguint().unwrap()) % p;
+    }
+    else {
+        x = &y.sub(1.to_biguint().unwrap()) % p;
+    }
 
-// // pub fn sloth_inv(y: &BigInt, p: &BigInt) -> BigInt {
-// //     let mut y = y;
-// //     if y % 2 == 1.to_bigint().unwrap() {
-// //         y = (y + 1) % p;
-// //     }
-// //     else {
-// //         y = (y - 1) % p;
-// //     }
+    if x.clone() % 2.to_biguint().unwrap() == 1.to_biguint().unwrap() {
+        return p.sub(x.pow(2) % p);
+    }
+    else {
+        return x.pow(2) % p;
+    }
+}
 
-// //     if y % 2 == 1.to_bigint().unwrap() {
-// //         return (p - y * y) % p;
-// //     }
-// //     else {
-// //         return (y * y) % p;
-// //     }
-// // }
-
-// #[cfg(test)]
-// mod test {
-//     use super::*;
-
-//     #[test]
-//     fn test_sloth() {
-//         let x = &2.to_bigint().unwrap();
-//         let p = &13.to_bigint().unwrap();
-//         let y = sloth(x, p);
-//         println!("{:?}", y);
-//     }
-// }
+#[test]
+fn test_sloth() {
+    use std::str::FromStr;
+    
+    let x = 2.to_biguint().unwrap();
+    let p = BigUint::from_str("340282366920938463463374607431768211507").unwrap();
+    let y = sloth(&x, &p);
+    let z = sloth_inv(&y, &p);
+    assert_eq!(x, z);
+}
