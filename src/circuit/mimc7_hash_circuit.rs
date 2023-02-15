@@ -9,11 +9,11 @@ use ark_relations::{
     r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError, Variable},
 };
 
-const MIMC_HASH_ROUNDS: usize = 10;
+const MIMC7_HASH_ROUNDS: usize = 91;
 
 /// This is our demo circuit for proving knowledge of the
 /// preimage of a MiMC hash invocation.
-pub struct MiMCHashDemo<'a, F: Field> {
+pub struct MiMC7HashDemo<'a, F: Field> {
     x_inputs: &'a [Option<F>],
     key: Option<F>,
     constants: &'a [F],
@@ -22,9 +22,9 @@ pub struct MiMCHashDemo<'a, F: Field> {
 /// Our demo circuit implements this `Circuit` trait which
 /// is used during paramgen and proving in order to
 /// synthesize the constraint system.
-impl<'a, F: Field> ConstraintSynthesizer<F> for MiMCHashDemo<'a, F> {
+impl<'a, F: Field> ConstraintSynthesizer<F> for MiMC7HashDemo<'a, F> {
     fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
-        assert_eq!(self.constants.len(), MIMC_HASH_ROUNDS);
+        assert_eq!(self.constants.len(), MIMC7_HASH_ROUNDS);
 
         let mut res_val  = self.key;
         let mut res = cs.new_witness_variable(|| res_val.ok_or(SynthesisError::AssignmentMissing))?;
@@ -41,7 +41,7 @@ impl<'a, F: Field> ConstraintSynthesizer<F> for MiMCHashDemo<'a, F> {
             let mut h = cs.new_witness_variable(|| h_val.ok_or(SynthesisError::AssignmentMissing))?;
 
             // Create every single mimc hash.
-            for j in 0..MIMC_HASH_ROUNDS {
+            for j in 0..MIMC7_HASH_ROUNDS {
                 let t_val;
                 let t;
                 if j == 0 {
@@ -163,7 +163,7 @@ impl<'a, F: Field> ConstraintSynthesizer<F> for MiMCHashDemo<'a, F> {
 }
 
 #[test]
-fn test_mimc_hash() {
+fn test_mimc7_hash() {
     // For benchmarking
     use std::time::{Duration, Instant};
     use ark_std::rand::Rng;
@@ -184,7 +184,7 @@ fn test_mimc_hash() {
     let new_x_inputs = x_inputs.clone().into_iter().map(|x| Some(x)).collect::<Vec<_>>();
     let key = rng.gen();
     // Generate the MiMC round constants
-    let constants = (0..MIMC_HASH_ROUNDS).map(|_| rng.gen()).collect::<Vec<_>>();
+    let constants = (0..MIMC7_HASH_ROUNDS).map(|_| rng.gen()).collect::<Vec<_>>();
 
     // Generate a random preimage and compute the image
     let x_hash = multi_mimc7_hash(&x_inputs, key, &constants);
@@ -193,7 +193,7 @@ fn test_mimc_hash() {
 
     // Create parameters for our circuit
     let params = {
-        let c = MiMCHashDemo::<Fr> {
+        let c = MiMC7HashDemo::<Fr> {
             x_inputs: &new_x_inputs,
             key: Some(key),
             constants: &constants,
@@ -225,7 +225,7 @@ fn test_mimc_hash() {
         {
             // Create an instance of our circuit (with the
             // witness)
-            let c = MiMCHashDemo {
+            let c = MiMC7HashDemo {
                 x_inputs: &new_x_inputs,
                 key: Some(key),
                 constants: &constants,

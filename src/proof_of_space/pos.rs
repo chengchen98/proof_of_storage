@@ -18,14 +18,14 @@ use ark_groth16::{
     create_random_proof, generate_random_parameters, prepare_verifying_key, verify_proof,
 };
 
-use crate::common::mimc_df::mimc_df;
+use crate::common::mimc_df::mimc5_df;
 use crate::circuit::pos_circuit::PosDemo;
 use crate::common::convert::{bits_to_fr, fr_to_bits};
-use crate::common::mimc_hash::multi_mimc7_hash;
+use crate::common::mimc_hash::multi_mimc5_hash;
 
 const DATA_DIR: &str = r"src\proof_of_space\pos_data.txt";
-pub const MIMC_DF_ROUNDS: usize = 322;
-pub const MIMC_HASH_ROUNDS: usize = 10;
+pub const MIMC5_DF_ROUNDS: usize = 322;
+pub const MIMC5_HASH_ROUNDS: usize = 110;
 
 pub fn create_pos(n: usize, key: Fr, m: Fr, df_constants: &Vec<Fr>) -> std::io::Result<()> {
     //! Prover: create proof-of-space by computing mimc function n times using incremental x.
@@ -35,7 +35,7 @@ pub fn create_pos(n: usize, key: Fr, m: Fr, df_constants: &Vec<Fr>) -> std::io::
 
     // Write y by line
     for x in 0..n {
-        let y = mimc_df(Fr::from_str(&x.to_string()).unwrap().add(&key), m, &df_constants); // compute mimc
+        let y = mimc5_df(Fr::from_str(&x.to_string()).unwrap().add(&key), m, &df_constants); // compute mimc
         let y = fr_to_bits(y);
         file.write_all(&y.as_bytes()).expect("Write failed!");
         file.write_all("\n".as_bytes()).expect("Write failed!");
@@ -109,7 +109,7 @@ pub fn response_1(challenges: &Vec<String>, y_x_map: HashMap<String, usize>, key
     }
 
     // input of mimc hash is x vector
-    x_hash_response = multi_mimc7_hash(&x_response, key, &hash_constants);
+    x_hash_response = multi_mimc5_hash(&x_response, key, &hash_constants);
     (x_response, index_response, x_hash_response)
 }
 
@@ -126,7 +126,7 @@ pub fn response_2(x_response: &Vec<Fr>, key: Fr, m: Fr, df_constants: &Vec<Fr>, 
     for i in 0..response_count {
         x_collect.push(Some(x_response[i]));
 
-        let y = mimc_df(x_response[i].add(&key), m, &df_constants);
+        let y = mimc5_df(x_response[i].add(&key), m, &df_constants);
         let y: BigInteger256 = y.into();
         let y_bits = y.to_bits_le();
         let mut buf_bits = [None; 256];
@@ -211,11 +211,11 @@ fn test_pos() {
     const RESPONSE_COUNT: usize = 10;
 
     // Prepare shared constants for mimc.
-    let df_constants: Vec<Fr> = (0..MIMC_DF_ROUNDS)
+    let df_constants: Vec<Fr> = (0..MIMC5_DF_ROUNDS)
     .map(|_| rng.gen())
     .collect::<Vec<_>>();
 
-    let hash_constants: Vec<Fr> = (0..MIMC_HASH_ROUNDS)
+    let hash_constants: Vec<Fr> = (0..MIMC5_HASH_ROUNDS)
     .map(|_| rng.gen())
     .collect::<Vec<_>>();
 

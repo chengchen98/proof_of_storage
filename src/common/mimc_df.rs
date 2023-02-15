@@ -15,7 +15,7 @@ const MIMC_DF_ROUNDS: usize = 322;
 ///     return xL
 /// }
 /// ```
-pub fn mimc_df<F: Field>(mut xl: F, mut xr: F, constants: &[F]) -> F {
+pub fn mimc3_df<F: Field>(mut xl: F, mut xr: F, constants: &[F]) -> F {
     assert_eq!(constants.len(), MIMC_DF_ROUNDS);
 
     for i in 0..MIMC_DF_ROUNDS {
@@ -27,6 +27,31 @@ pub fn mimc_df<F: Field>(mut xl: F, mut xr: F, constants: &[F]) -> F {
         tmp2.add_assign(&xr);
         xr = xl;
         xl = tmp2;
+    }
+
+    xl
+}
+/// function LongsightF322p5(xL ⦂ Fp, xR ⦂ Fp) {
+///     for i from 0 up to 321 {
+///         xL, xR := xR + (xL + Ci)^5, xL
+///     }
+///     return xL
+/// }
+/// ```
+pub fn mimc5_df<F: Field>(mut xl: F, mut xr: F, constants: &[F]) -> F {
+    assert_eq!(constants.len(), MIMC_DF_ROUNDS);
+
+    for i in 0..MIMC_DF_ROUNDS {
+        let mut tmp1 = xl;
+        tmp1.add_assign(&constants[i]);
+        let mut tmp2 = tmp1.clone();
+        tmp2.square_in_place();
+        let mut tmp4 = tmp2.clone();
+        tmp4.square_in_place();
+        tmp4.mul_assign(&tmp1);
+        tmp4.add_assign(&xr);
+        xr = xl;
+        xl = tmp4;
     }
 
     xl

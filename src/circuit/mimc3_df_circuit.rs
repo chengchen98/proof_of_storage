@@ -9,11 +9,11 @@ use ark_relations::{
     r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError, Variable},
 };
 
-const MIMC_DF_ROUNDS: usize = 322;
+const MIMC3_DF_ROUNDS: usize = 322;
 
 /// This is our demo circuit for proving knowledge of the
 /// preimage of a MiMC hash invocation.
-pub struct MiMCDFDemo<'a, F: Field> {
+pub struct MiMC3DFDemo<'a, F: Field> {
     xl: Option<F>,
     xr: Option<F>,
     constants: &'a [F],
@@ -22,9 +22,9 @@ pub struct MiMCDFDemo<'a, F: Field> {
 /// Our demo circuit implements this `Circuit` trait which
 /// is used during paramgen and proving in order to
 /// synthesize the constraint system.
-impl<'a, F: Field> ConstraintSynthesizer<F> for MiMCDFDemo<'a, F> {
+impl<'a, F: Field> ConstraintSynthesizer<F> for MiMC3DFDemo<'a, F> {
     fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
-        assert_eq!(self.constants.len(), MIMC_DF_ROUNDS);
+        assert_eq!(self.constants.len(), MIMC3_DF_ROUNDS);
 
         // Allocate the first component of the preimage.
         let mut xl_value = self.xl;
@@ -34,7 +34,7 @@ impl<'a, F: Field> ConstraintSynthesizer<F> for MiMCDFDemo<'a, F> {
         let mut xr_value = self.xr;
         let mut xr = cs.new_witness_variable(|| xr_value.ok_or(SynthesisError::AssignmentMissing))?;
 
-        for i in 0..MIMC_DF_ROUNDS {
+        for i in 0..MIMC3_DF_ROUNDS {
             // xL, xR := xR + (xL + Ci)^3, xL
 
             // tmp = (xL + Ci)^2
@@ -61,7 +61,7 @@ impl<'a, F: Field> ConstraintSynthesizer<F> for MiMCDFDemo<'a, F> {
                 e
             });
 
-            let new_xl = if i == (MIMC_DF_ROUNDS - 1) {
+            let new_xl = if i == (MIMC3_DF_ROUNDS - 1) {
                 // This is the last round, xL is our image and so
                 // we allocate a public input.
                 cs.new_input_variable(|| new_xl_value.ok_or(SynthesisError::AssignmentMissing))?
@@ -89,13 +89,13 @@ impl<'a, F: Field> ConstraintSynthesizer<F> for MiMCDFDemo<'a, F> {
 }
 
 #[test]
-fn test_mimc_vde() {
+fn test_mimc3_df() {
     // For benchmarking
     use std::time::{Duration, Instant};
     use ark_std::rand::Rng;
     use ark_std::test_rng;
     use ark_bls12_381::{Fr, Bls12_381};
-    use crate::common::mimc_df::mimc_df;
+    use crate::common::mimc_df::mimc3_df;
 
     // We're going to use the Groth proving system.
     use ark_groth16::{
@@ -107,13 +107,13 @@ fn test_mimc_vde() {
     let rng = &mut test_rng();
 
     // Generate the MiMC round constants
-    let constants = (0..MIMC_DF_ROUNDS).map(|_| rng.gen()).collect::<Vec<_>>();
+    let constants = (0..MIMC3_DF_ROUNDS).map(|_| rng.gen()).collect::<Vec<_>>();
 
     println!("Creating parameters...");
 
     // Create parameters for our circuit
     let params = {
-        let c = MiMCDFDemo::<Fr> {
+        let c = MiMC3DFDemo::<Fr> {
             xl: None,
             xr: None,
             constants: &constants,
@@ -142,7 +142,7 @@ fn test_mimc_vde() {
         // Generate a random preimage and compute the image
         let xl = rng.gen();
         let xr = rng.gen();
-        let image = mimc_df(xl, xr, &constants);
+        let image = mimc3_df(xl, xr, &constants);
 
         // proof_vec.truncate(0);
 
@@ -150,7 +150,7 @@ fn test_mimc_vde() {
         {
             // Create an instance of our circuit (with the
             // witness)
-            let c = MiMCDFDemo {
+            let c = MiMC3DFDemo {
                 xl: Some(xl),
                 xr: Some(xr),
                 constants: &constants,
