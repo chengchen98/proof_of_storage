@@ -1,29 +1,50 @@
-use ark_ff::Field;
+use std::ops::{AddAssign, MulAssign, Add};
+
+use ark_bls12_381::Fr;
+use ark_ff::{Field, Zero, One, BigInteger256, BigInteger};
 use ark_relations::{
-    lc, ns,
+    lc,
     r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError, Variable},
 };
 
-pub const MIMC_DF_ROUNDS: usize = 322;
-pub const MIMC_HASH_ROUNDS: usize = 10;
+const MIMC5_DF_ROUNDS: usize = 322;
+const MIMC5_HASH_ROUNDS: usize = 110;
 
-// y = mimc_vde(key + x, m)
-// yn = y
-pub struct PosDemo<'a, F: Field> {
-    pub key: Option<F>, // verify input 1
-    pub x: &'a [Option<F>],
-    pub m: Option<F>, // verify input 2
-    pub df_constants: &'a [F],
-    pub y_bits: &'a [Option<[Option<F>; 256]>],
-    pub yn: &'a [Option<F>], // verify input 3
-    pub difficulty: usize,
-    pub hash_constants: &'a [F] // verify input 4
+// 延迟函数计算结果所占比特数
+const Y_SIZE: usize = 256;
+// 等于空间声明的N
+const YN_SIZE: usize = 20;
+
+// 需要证明的事情：
+
+// 1.证明延迟函数计算的正确性：y = mimc_vde(key + x, m)
+
+// 2.证明y的二进制展开每一位都是0或者1（Y_SIZE位）
+// 3.证明y的二进制展开的正确性：y_bits = y
+
+// 4.证明yn的二进制展开每一位都是0或者1（YN_SIZE位）
+// 5.证明yn的二进制展开的正确性：yn_bits = yn
+
+// 6.证明yn_bits等于y_bits的前n位：yn_bits = y_bits[0..YN_SIZE]
+
+// 7.证明x_hash是x的哈希结果：x_hash = hash(x[0], x[1], .. , x[n-1])
+
+pub struct PosDemo<'a> {
+    pub key: Option<Fr>, // 验证者input1
+    pub x: &'a [Option<Fr>],
+    pub m: Option<Fr>, // 验证者input2
+    pub df_constants: &'a [Fr],
+
+    pub yn: &'a [Option<Fr>], // 验证者input3
+
+    pub x_hash: Option<Fr>, // 验证者input4
+    pub hash_constants: &'a [Fr],
 }
 
-impl<'a, F: Field> ConstraintSynthesizer<F> for PosDemo<'a, F> {
-    fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
-        assert_eq!(self.df_constants.len(), MIMC_DF_ROUNDS);
-        assert_eq!(self.x.len(), self.yn.len());
+impl<'a> ConstraintSynthesizer<Fr> for PosDemo<'a> {
+    fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+        assert_eq!(self.df_constants.len(), MIMC5_DF_ROUNDS);
+        assert_eq!(self.hash_constants.len(), MIMC5_HASH_ROUNDS);
 
         let key_val = self.key;
         let key = cs.new_input_variable(|| key_val.ok_or(SynthesisError::AssignmentMissing))?;
@@ -31,11 +52,7 @@ impl<'a, F: Field> ConstraintSynthesizer<F> for PosDemo<'a, F> {
         let m_val = self.m;
         cs.new_input_variable(|| m_val.ok_or(SynthesisError::AssignmentMissing))?;
     
-        // Start to create all proofs: y = mimc(key + x, m)
         for i in 0..self.x.len() {
-            let ns = ns!(cs, "sample");
-            let cs = ns.cs();
-
             let x_val = self.x[i];
             let x = cs.new_witness_variable(|| x_val.ok_or(SynthesisError::AssignmentMissing))?;
 
@@ -55,136 +72,224 @@ impl<'a, F: Field> ConstraintSynthesizer<F> for PosDemo<'a, F> {
             let mut xr_val = m_val;
             let mut xr = cs.new_witness_variable(|| xr_val.ok_or(SynthesisError::AssignmentMissing))?;
 
-            // Start to create single mimc proof: yi = mimc(key + xi, m)
-            for j in 0..MIMC_DF_ROUNDS {
-                let tmp_val = xl_val.map(|mut e| {
+            // 1.证明延迟函数计算的正确性：y = mimc_vde(key + x, m)
+            for j in 0..MIMC5_DF_ROUNDS {
+                let tmp1_val = xl_val.map(|mut e| {
                     e.add_assign(&self.df_constants[j]);
-                    e.square()
+                    e.square_in_place();
+                    e
                 });
-                let tmp = cs.new_witness_variable(|| tmp_val.ok_or(SynthesisError::AssignmentMissing))?;
+                let tmp1 = cs.new_witness_variable(|| tmp1_val.ok_or(SynthesisError::AssignmentMissing))?;
                 cs.enforce_constraint(
                     lc!() + xl + (self.df_constants[j], Variable::One),
                     lc!() + xl + (self.df_constants[j], Variable::One),
-                    lc!() + tmp,
+                    lc!() + tmp1,
+                )?;
+                
+                let tmp2_val = tmp1_val.map(|mut e| {
+                    e.square_in_place();
+                    e
+                });
+                let tmp2 = cs.new_witness_variable(|| tmp2_val.ok_or(SynthesisError::AssignmentMissing))?;
+                cs.enforce_constraint(
+                    lc!() + tmp1,
+                    lc!() + tmp1,
+                    lc!() + tmp2,
                 )?;
     
                 let new_xl_val = xl_val.map(|mut e| {
                     e.add_assign(&self.df_constants[j]);
-                    e.mul_assign(&tmp_val.unwrap());
+                    e.mul_assign(&tmp2_val.unwrap());
                     e.add_assign(&xr_val.unwrap());
                     e
                 });
                 let new_xl = cs.new_witness_variable(|| new_xl_val.ok_or(SynthesisError::AssignmentMissing))?;
                 cs.enforce_constraint(
-                    lc!() + tmp,
+                    lc!() + tmp2,
                     lc!() + xl + (self.df_constants[j], Variable::One),
                     lc!() + new_xl - xr,
                 )?;
+
+                xr = xl;
+                xr_val = xl_val;
+                xl = new_xl;
+                xl_val = new_xl_val;
     
-                // Start to create proof of yn = y[0..n]
-                if j == MIMC_DF_ROUNDS - 1 {
-                    let y_bits_val = self.y_bits[i];
-                    {
-                        let mut y_val = Some(F::zero());
+                // 3.证明y的二进制展开的正确性：y_bits = y
+                if j == MIMC5_DF_ROUNDS - 1 {
+                    let y_bits_val = {
+                        if xl_val == None {
+                            vec![None; Y_SIZE]
+                        }
+                        else {
+                            let tmp: BigInteger256 = xl_val.unwrap().into();
+                            let tmp = tmp.to_bits_le();
+                            (0..Y_SIZE).map(|i| Some(tmp[i])).collect()
+                        }
+                    };
+                    
+                    let mut y_val = Some(Fr::zero());
+                    let mut y = cs.new_witness_variable(|| y_val.ok_or(SynthesisError::AssignmentMissing))?;
 
-                        let mut two_val = Some(F::one());
-                        let mut two = cs.new_witness_variable(|| two_val.ok_or(SynthesisError::AssignmentMissing))?;
+                    let mut two_val = Some(Fr::one());
+                    let mut two = cs.new_witness_variable(|| two_val.ok_or(SynthesisError::AssignmentMissing))?;
 
-                        let mut y = cs.new_witness_variable(|| y_val.ok_or(SynthesisError::AssignmentMissing))?;
-
-                        for k in 0..y_bits_val.unwrap().len() {
-                            // bit = xi
-                            let bit_val = y_bits_val.unwrap()[k];
-                            let bit = cs.new_witness_variable(|| bit_val.ok_or(SynthesisError::AssignmentMissing))?;
-                            // xi = 0 or 1
-                            cs.enforce_constraint(
-                                lc!() + bit,
-                                lc!() + bit,
-                                lc!() + bit
-                            )?;
-                            
-                            // tmp1 = xi * 2^i
-                            let tmp1_val = bit_val.map(|mut e| {
-                                e.mul_assign(&two_val.unwrap());
-                                e
-                            });
-                            let tmp1 = cs.new_witness_variable(|| tmp1_val.ok_or(SynthesisError::AssignmentMissing))?;
-                            cs.enforce_constraint(
-                                lc!() + bit,
-                                lc!() + two,
-                                lc!() + tmp1
-                            )?;
-                            
-                            // tmp2 = tmp1 + x
-                            let tmp2_val = tmp1_val.map(|mut e| {
-                                e.add_assign(&y_val.unwrap());
-                                e
-                            });
-                            let tmp2 = cs.new_witness_variable(|| tmp2_val.ok_or(SynthesisError::AssignmentMissing))?;
-                            cs.enforce_constraint(
-                                lc!() + tmp1 + y,
-                                lc!() + Variable::One,
-                                lc!() + tmp2
-                            )?;
-
-                            // yn = tmp2
-                            if k == self.difficulty - 1 {
-                                let yn_val = self.yn[i];
-                                let yn = cs.new_input_variable(|| yn_val.ok_or(SynthesisError::AssignmentMissing))?;
-
-                                cs.enforce_constraint(
-                                    lc!() + tmp2,
-                                    lc!() + Variable::One,
-                                    lc!() + yn
-                                )?;
+                    for k in 0..y_bits_val.len() {
+                        // 2.证明y的二进制展开每一位都是0或者1（Y_SIZE位）
+                        let bit_val = {
+                            if y_bits_val[k] == Some(true) {
+                                Some(Fr::one())
                             }
-
-                            // y = y0 * 2^0 + y1 * 2^1 + ..
-                            if k == y_bits_val.unwrap().len() - 1 {
-                                let y_val = new_xl_val;
-                                let y = cs.new_witness_variable(|| y_val.ok_or(SynthesisError::AssignmentMissing))?;
-                                cs.enforce_constraint(
-                                    lc!() + tmp2,
-                                    lc!() + Variable::One,
-                                    lc!() + y
-                                )?;
+                            else if y_bits_val[k] == Some(false){
+                                Some(Fr::zero())
                             }
+                            else {
+                                None
+                            }
+                        };
+                        let bit = cs.new_witness_variable(|| bit_val.ok_or(SynthesisError::AssignmentMissing))?;
+                        cs.enforce_constraint(
+                            lc!() + bit,
+                            lc!() + bit,
+                            lc!() + bit
+                        )?;
                         
-                            let newtwo_val = two_val.map(|mut e| {
-                                e.mul_assign(F::one().add(F::one()));
-                                e
-                            });
+                        // tmp1 = yi * 2^i
+                        let tmp_val = bit_val.map(|mut e| {
+                            e.mul_assign(&two_val.unwrap());
+                            e.add_assign(&y_val.unwrap());
+                            e
+                        });
+                        let tmp = cs.new_witness_variable(|| tmp_val.ok_or(SynthesisError::AssignmentMissing))?;
+                        cs.enforce_constraint(
+                            lc!() + bit,
+                            lc!() + two,
+                            lc!() + tmp - y
+                        )?;
+                        
+                        // newtwo = two * 2
+                        let newtwo_val = two_val.map(|mut e| {
+                            e.mul_assign(Fr::one().add(Fr::one()));
+                            e
+                        });
+                        let newtwo = cs.new_witness_variable(|| newtwo_val.ok_or(SynthesisError::AssignmentMissing))?;
+                        cs.enforce_constraint(
+                            lc!() + two,
+                            lc!() + (Fr::one().add(Fr::one()), Variable::One),
+                            lc!() + newtwo
+                        )?;
 
-                            let newtwo = cs.new_witness_variable(|| newtwo_val.ok_or(SynthesisError::AssignmentMissing))?;
-
+                        two = newtwo;
+                        two_val = newtwo_val;
+                        y = tmp;
+                        y_val = tmp_val;
+                        
+                        if k == y_bits_val.len() - 1 {
+                            let yy_val = xl_val;
+                            let yy = cs.new_witness_variable(|| yy_val.ok_or(SynthesisError::AssignmentMissing))?;
                             cs.enforce_constraint(
-                                lc!() + two,
-                                lc!() + (F::one().add(F::one()), Variable::One),
-                                lc!() + newtwo
+                                lc!() + y,
+                                lc!() + Variable::One,
+                                lc!() + yy
                             )?;
+                        }
 
-                            two = newtwo;
-                            two_val = newtwo_val;
-                            y = tmp2;
-                            y_val = tmp2_val;
+                        // 5.证明yn的二进制展开的正确性：yn_bits = yn
+                        if k == YN_SIZE - 1 {
+                            let yn_bits_val = {
+                                if self.yn[i] == None {
+                                    vec![None; YN_SIZE]
+                                }
+                                else {
+                                    let tmp: BigInteger256 = self.yn[i].unwrap().into();
+                                    let tmp = tmp.to_bits_le();
+                                    (0..YN_SIZE).map(|i| Some(tmp[i])).collect()
+                                }
+                            };
+                            
+                            let mut yn_val = Some(Fr::zero());
+                            let mut yn = cs.new_witness_variable(|| yn_val.ok_or(SynthesisError::AssignmentMissing))?;
+                            
+                            let mut two_val = Some(Fr::one());
+                            let mut two = cs.new_witness_variable(|| two_val.ok_or(SynthesisError::AssignmentMissing))?;
+    
+                            for m in 0..yn_bits_val.len() {
+
+                                // 4.证明yn的二进制展开每一位都是0或者1（YN_SIZE位）
+                                let bit_val = {
+                                    if yn_bits_val[m] == Some(true) {
+                                        Some(Fr::one())
+                                    }
+                                    else if yn_bits_val[m] == Some(false){
+                                        Some(Fr::zero())
+                                    }
+                                    else {
+                                        None
+                                    }
+                                };
+                                let bit = cs.new_witness_variable(|| bit_val.ok_or(SynthesisError::AssignmentMissing))?;
+                                cs.enforce_constraint(
+                                    lc!() + bit,
+                                    lc!() + bit,
+                                    lc!() + bit
+                                )?;
+                                
+                                // tmp = yn[i] * 2^i
+                                let tmp_val = bit_val.map(|mut e| {
+                                    e.mul_assign(&two_val.unwrap());
+                                    e.add_assign(&yn_val.unwrap());
+                                    e
+                                });
+                                let tmp = cs.new_witness_variable(|| tmp_val.ok_or(SynthesisError::AssignmentMissing))?;
+                                cs.enforce_constraint(
+                                    lc!() + bit,
+                                    lc!() + two,
+                                    lc!() + tmp - yn
+                                )?;
+                            
+                                let newtwo_val = two_val.map(|mut e| {
+                                    e.mul_assign(Fr::one().add(Fr::one()));
+                                    e
+                                });
+                                let newtwo = cs.new_witness_variable(|| newtwo_val.ok_or(SynthesisError::AssignmentMissing))?;
+                                cs.enforce_constraint(
+                                    lc!() + two,
+                                    lc!() + (Fr::one().add(Fr::one()), Variable::One),
+                                    lc!() + newtwo
+                                )?;
+    
+                                two = newtwo;
+                                two_val = newtwo_val;
+                                yn = tmp;
+                                yn_val = tmp_val;
+
+                                if m == yn_bits_val.len() - 1 {
+                                    let yyn_val = self.yn[i];
+                                    let yyn = cs.new_input_variable(|| yyn_val.ok_or(SynthesisError::AssignmentMissing))?;
+                                    cs.enforce_constraint(
+                                        lc!() + yyn,
+                                        lc!() + Variable::One,
+                                        lc!() + yn
+                                    )?;
+                                    
+                                    // 6.证明yn_bits等于y_bits的前n位：yn_bits = y_bits[0..YN_SIZE]
+                                    cs.enforce_constraint(
+                                        lc!() + yn,
+                                        lc!() + Variable::One,
+                                        lc!() + y
+                                    )?;
+                                }
+                            }
                         }
                     }
                 }
-
-                // xR = xL
-                xr = xl;
-                xr_val = xl_val;
-    
-                // xL = new_xL
-                xl = new_xl;
-                xl_val = new_xl_val;
             }
         }
 
         let mut res_val  = self.key;
         let mut res = cs.new_witness_variable(|| res_val.ok_or(SynthesisError::AssignmentMissing))?;
 
-        // Start to compute mimc hash.
+        // 7.证明x_hash是x的哈希结果：x_hash = hash(x[0], x[1], .. , x[n-1])
         for i in 0..self.x.len() {
             let x_in_val= self.x[i];
             let x_in = cs.new_witness_variable(|| x_in_val.ok_or(SynthesisError::AssignmentMissing))?;
@@ -192,11 +297,11 @@ impl<'a, F: Field> ConstraintSynthesizer<F> for PosDemo<'a, F> {
             let key_val = res_val;
             let key = cs.new_witness_variable(|| key_val.ok_or(SynthesisError::AssignmentMissing))?;    
             
-            let mut h_val = Some(F::zero());
+            let mut h_val = Some(Fr::zero());
             let mut h = cs.new_witness_variable(|| h_val.ok_or(SynthesisError::AssignmentMissing))?;
 
-            // Create every single mimc hash.
-            for j in 0..MIMC_HASH_ROUNDS {
+            // 计算rounds轮
+            for j in 0..MIMC5_HASH_ROUNDS {
                 let t_val;
                 let t;
                 if j == 0 {
@@ -251,32 +356,20 @@ impl<'a, F: Field> ConstraintSynthesizer<F> for PosDemo<'a, F> {
                     lc!() + t4
                 )?;
                 
-                // t6 = t4 * t2
-                let t6_val = t4_val.map(|mut e| {
-                    e.mul_assign(&t2_val.unwrap());
-                    e
-                });
-                let t6 = cs.new_witness_variable(|| t6_val.ok_or(SynthesisError::AssignmentMissing))?;
-                cs.enforce_constraint(
-                    lc!() + t4,
-                    lc!() + t2,
-                    lc!() + t6
-                )?;
-                
-                // t7 = t6 * t
-                let t7_val = t6_val.map(|mut e| {
+                // t5 = t4 * t
+                let t5_val = t4_val.map(|mut e| {
                     e.mul_assign(&t_val.unwrap());
                     e
                 });
-                let t7 = cs.new_witness_variable(|| t7_val.ok_or(SynthesisError::AssignmentMissing))?;
+                let t5 = cs.new_witness_variable(|| t5_val.ok_or(SynthesisError::AssignmentMissing))?;
                 cs.enforce_constraint(
-                    lc!() + t6,
+                    lc!() + t4,
                     lc!() + t,
-                    lc!() + t7
+                    lc!() + t5
                 )?;
 
-                h = t7;
-                h_val = t7_val;
+                h = t5;
+                h_val = t5_val;
             }
 
             // new_h = h + key
@@ -314,20 +407,5 @@ impl<'a, F: Field> ConstraintSynthesizer<F> for PosDemo<'a, F> {
         }
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use ark_ff::{BigInteger256, BigInteger};
-    use ark_bls12_381::Fr;
-
-    #[test]
-    fn test_random() {
-        let y = BigInteger256::from_bits_le(&[true]);
-        println!("{:?}", y);
-        let z = Fr::from(y);
-        let a: BigInteger256 = z.into();
-        println!("{:?}", a);
     }
 }
