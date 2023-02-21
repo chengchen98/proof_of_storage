@@ -154,14 +154,14 @@ mod test {
     use num_bigint::BigUint;
 
     use super::*;
-    use crate::common::data::write_file;
+    use crate::common::data::create_random_file;
 
     #[test]
     fn test() {
         let rng = &mut test_rng();
         
         // Generate origin data and write to file.
-        write_file(DATA_L, DATA_DIR).unwrap();
+        create_random_file(DATA_L, DATA_DIR).unwrap();
 
         let mut file = OpenOptions::new()
         .read(true)
