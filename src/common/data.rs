@@ -2,6 +2,7 @@ use std::{fs::File, io::Write};
 use ark_std::{test_rng, rand::Rng};
 
 pub fn padding(data: &Vec<u8>, n: usize) -> Vec<u8> {
+    //! 将原始字节向量扩展到指定位数
     let mut res = data.clone();
     if data.len() < n {
         res.append(&mut vec![0u8; n - data.len()]);

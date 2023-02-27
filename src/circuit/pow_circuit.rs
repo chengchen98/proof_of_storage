@@ -128,11 +128,9 @@ impl<'a, F: Field> ConstraintSynthesizer<F> for PowDemo<'a, F> {
 fn test_pow() {
     use std::time::{Duration, Instant};
     use ark_ff::{BigInteger256, BigInteger};
-    use ark_std::rand::Rng;
-    use ark_std::test_rng;
+    use ark_std::{rand::Rng, test_rng};
     use ark_bls12_381::{Fr, Bls12_381};
 
-    // We're going to use the Groth proving system.
     use ark_groth16::{
         create_random_proof, generate_random_parameters, prepare_verifying_key, verify_proof,
     };

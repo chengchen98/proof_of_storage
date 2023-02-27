@@ -7,7 +7,8 @@ use std::time::Instant;
 
 use ark_bls12_381::{Fr, Bls12_381};
 use ark_ff::{BigInteger, BigInteger256};
-use ark_std::{rand::Rng, test_rng};
+use rand::Rng;
+use std::path::PathBuf; 
 
 use ark_groth16::{
     Proof, PreparedVerifyingKey,
@@ -20,7 +21,7 @@ use crate::common::mimc_hash::multi_mimc5_hash;
 use crate::circuit::pos_circuit::PosDemo;
 
 // 所声明的存储空间的位置
-const DATA_DIR: &str = r"src\proof_of_space\pos_data";
+const DATA_DIR: [&str; 3] = [r"src", "proof_of_space", "pos_data"];
 // 验证者生成的挑战个数
 const CHALLENGE_COUNT: usize = 20;
 // 证明者需要响应的挑战个数
@@ -33,7 +34,7 @@ const MIMC5_DF_ROUNDS: usize = 322;
 const MIMC5_HASH_ROUNDS: usize = 110;
 
 pub fn prepare_storage(file: &mut File, count: usize) -> std::io::Result<()> {
-    //! 提供 (N+1)*2^N bits 的存储空间，初始将内容全部设置为0
+    //! 提供 count = (N+1)*2^N bits 的存储空间，初始将内容全部设置为0
     let buf = [0];
     for i in 0..(N + 1) * count / 8 {
         file.seek(SeekFrom::Start(i.try_into().unwrap())).unwrap();
@@ -42,7 +43,7 @@ pub fn prepare_storage(file: &mut File, count: usize) -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn create_pos(file: &mut File, key: Fr, count: usize, m: Fr, df_constants: &Vec<Fr>) -> std::io::Result<()> {
+pub fn mark_storage(file: &mut File, key: Fr, count: usize, m: Fr, df_constants: &Vec<Fr>) -> std::io::Result<()> {
     //! 计算延迟函数，并将结果修改进存储空间
     // y的前n位作为idx，x作为val，在y位置存储x
     for x in 0..count {
@@ -109,7 +110,7 @@ pub fn create_pos(file: &mut File, key: Fr, count: usize, m: Fr, df_constants: &
 
 pub fn create_challenge(n: usize) -> Vec<usize> {
     //! 验证者随机生成挑战
-    let mut rng = test_rng();
+    let mut rng = rand::thread_rng();
     let mut challenges = vec![];
     const CHOICE: &[bool] = &[false, true];
 
@@ -131,7 +132,7 @@ pub fn response_1(file: &mut File, challenges: &Vec<usize>, key: Fr, hash_consta
     let mut idx_response = vec![];
     let x_hash_response;
 
-    let mut count = 0;
+    let mut count = 0; 
 
     // 逐个响应挑战，根据challenge[i]（即yn）找到对应的x
     for i in 0..challenges.len() {
@@ -192,7 +193,7 @@ pub fn response_1(file: &mut File, challenges: &Vec<usize>, key: Fr, hash_consta
 pub fn response_2(key: Fr, x_response: &Vec<Fr>, m: Fr, df_constants: &Vec<Fr>, challenges: &Vec<usize>, idx_response: &Vec<usize>, x_hash: Fr, hash_constants: &Vec<Fr>) 
 -> (PreparedVerifyingKey<Bls12_381>, Proof<Bls12_381>) {
     //! 生成零知识证明
-    let mut rng = test_rng();
+    let mut rng = rand::thread_rng();
 
     // 构建电路，生成参数
     let start = Instant::now();
@@ -258,14 +259,17 @@ pub fn verify(pvk: PreparedVerifyingKey<Bls12_381>, proof: Proof<Bls12_381>, key
 }
 
 pub fn test_pos() {
+    let path: PathBuf = DATA_DIR.iter().collect();
+
     let mut file = OpenOptions::new()
     .read(true)
     .write(true)
     .create(true)
-    .open(DATA_DIR)
+    // .truncate(true)
+    .open(path.to_str().unwrap())
     .unwrap();
 
-    let rng = &mut test_rng();
+    let mut rng = rand::thread_rng();
 
     // 准备计算DF和Hash的常数
     let df_constants: Vec<Fr> = (0..MIMC5_DF_ROUNDS)
@@ -293,7 +297,7 @@ pub fn test_pos() {
 
     // // 通过计算延迟函数标定存储空间
     // let start = Instant::now();
-    // create_pos(&mut file, key, count, m, &df_constants).unwrap();
+    // mark_storage(&mut file, key, count, m, &df_constants).unwrap();
     // println!("Create pos: {:?}", start.elapsed());
     // println!("-------------------------------------");
 
@@ -317,7 +321,7 @@ pub fn test_pos() {
     // 第二次响应：生成零知识证明
     let start = Instant::now();
     let (pvk, proof) = response_2(key, &x_response, m,  &df_constants,  &challenges, &idx_response, x_hash_response, &hash_constants);
-    println!("Response 2 total: {:?}", start.elapsed());
+    println!("Response 2: {:?}", start.elapsed());
     println!("-------------------------------------");
     
     // 验证

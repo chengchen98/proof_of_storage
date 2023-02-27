@@ -7,13 +7,13 @@ edition = "2021"
 
 [dependencies]
 # bitvec = "1"
-# rand = "0.8"
 # bellman = "0.13.1"
 # bls12_381 = "0.7.0"
 # ff = "0.12"
 # group = "0.12"
 # pairing = { version = "0.22", optional = true }
 
+rand = "0.8"
 ark-groth16 = { version = "0.3.0", default-features = false}
 ark-ff = { version = "0.3.0", default-features = false }
 ark-ec = { version = "0.3.0", default-features = false }
