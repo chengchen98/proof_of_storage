@@ -35,8 +35,8 @@ pub fn single_vde_inv(y: &BigUint, p: &BigUint, mode: &str) -> BigUint {
 
 pub fn vde(x: &Vec<u8>, p: &BigUint, mode: &str) -> Vec<u8> {
     let mut res = vec![];
-    for i in (0..x.len()).step_by(STEP) {
-        let buf_x = &x[i .. i + STEP];
+    for i in (0..x.len()).step_by(STEP - 1) {
+        let buf_x = &x[i .. i + STEP - 1];
         let cur_x = BigUint::from_bytes_le(&buf_x);
 
         let y = single_vde(&cur_x, p, mode);
@@ -56,11 +56,11 @@ pub fn vde_inv(y: &Vec<u8>, p: &BigUint, mode: &str) -> Vec<u8> {
         let cur_y = BigUint::from_bytes_le(&buf_y);
 
         let x = single_vde_inv(&cur_y, p, mode);
-        let x_bytes = x.to_bytes_le().to_vec();
+        let mut x_bytes = x.to_bytes_le().to_vec();
 
-        let mut x_bytes_pad = padding(&x_bytes, STEP);
+        // let mut x_bytes_pad = padding(&x_bytes, STEP);
 
-        res.append(&mut x_bytes_pad);
+        res.append(&mut x_bytes);
     }
     res
 }
@@ -69,8 +69,8 @@ pub fn vde_inv(y: &Vec<u8>, p: &BigUint, mode: &str) -> Vec<u8> {
 fn test_vde() {
     use std::str::FromStr;
 
-    let x = vec![1u8; 1024];
-    let p = BigUint::from_str("276945728797634137489847193533935566200901110872557999805088095083433912915081929876610085556888176394277441945470579512610156696848456080099840453319124321877455883488948246054067984322844955398390786946509577100886479649428068281092367813035032036823204874960913543086692263648390252658950393200040464000839").unwrap();
+    let x = vec![1u8; 127];
+    let p = BigUint::from_str("162892692473361111348249522320347526171207756760381512377472315857021028422689815298733972916755720242725920671690392382889161699607077776923153532250584503438515484867646456937083398184988196288738761695736655551130641678117347468224388930820784409522417624141309667471624562708798367178136545063034409853007").unwrap();
     let y = vde(&x, &p, "sloth");
     let z = vde_inv(&y, &p, "sloth");
     assert_eq!(x, z);

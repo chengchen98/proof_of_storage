@@ -259,16 +259,6 @@ pub fn verify(pvk: PreparedVerifyingKey<Bls12_381>, proof: Proof<Bls12_381>, key
 }
 
 pub fn test_pos() {
-    let path: PathBuf = DATA_DIR.iter().collect();
-
-    let mut file = OpenOptions::new()
-    .read(true)
-    .write(true)
-    .create(true)
-    // .truncate(true)
-    .open(path.to_str().unwrap())
-    .unwrap();
-
     let mut rng = rand::thread_rng();
 
     // 准备计算DF和Hash的常数
@@ -285,15 +275,31 @@ pub fn test_pos() {
 
     println!("-------------------------------------");
 
+    let path: PathBuf = DATA_DIR.iter().collect();
+    let path = path.to_str().unwrap();
+
     // 计算需要计算延迟函数的次数
     // let base: usize = 2;
     // let count = base.pow(N.try_into().unwrap());
 
     // 先划分一定大小的存储空间，并用0填满
     // let start = Instant::now();
+    // let mut file = OpenOptions::new()
+    // .read(true)
+    // .write(true)
+    // .create(true)
+    // .truncate(true)
+    // .open(path)
+    // .unwrap();
     // prepare_storage(&mut file, count).unwrap();
     // println!("Prepare storage: {:?}", start.elapsed());
     // println!("-------------------------------------");
+
+    let mut file = OpenOptions::new()
+    .read(true)
+    .write(true)
+    .open(path)
+    .unwrap();
 
     // // 通过计算延迟函数标定存储空间
     // let start = Instant::now();
