@@ -7,25 +7,25 @@ use ark_relations::{
     r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError, Variable},
 };
 
+use crate::proof_of_space::pos::{N, RESPONSE_COUNT};
+
 const MIMC5_DF_ROUNDS: usize = 322;
 const MIMC5_HASH_ROUNDS: usize = 110;
 
 // 延迟函数计算结果所占比特数
 const Y_SIZE: usize = 256;
-// 等于空间声明的N
-const YN_SIZE: usize = 20;
 
 // 需要证明的事情：
 
 // 1.证明延迟函数计算的正确性：y = mimc_vde(key + x, m)
 
-// 2.证明y的二进制展开每一位都是0或者1（Y_SIZE位）
+// 2.证明y的每一位都是0或者1（Y_SIZE位）
 // 3.证明y的二进制展开的正确性：y_bits = y
 
-// 4.证明yn的二进制展开每一位都是0或者1（YN_SIZE位）
+// 4.证明yn的二进制展开每一位都是0或者1（N位）
 // 5.证明yn的二进制展开的正确性：yn_bits = yn
 
-// 6.证明yn_bits等于y_bits的前n位：yn_bits = y_bits[0..YN_SIZE]
+// 6.证明yn_bits等于y_bits的前n位：yn_bits = y_bits[0..N]
 
 // 7.证明x_hash是x的哈希结果：x_hash = hash(x[0], x[1], .. , x[n-1])
 
@@ -45,6 +45,7 @@ impl<'a> ConstraintSynthesizer<Fr> for PosDemo<'a> {
     fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
         assert_eq!(self.df_constants.len(), MIMC5_DF_ROUNDS);
         assert_eq!(self.hash_constants.len(), MIMC5_HASH_ROUNDS);
+        assert_eq!(self.yn.len(), RESPONSE_COUNT);
 
         let key_val = self.key;
         let key = cs.new_input_variable(|| key_val.ok_or(SynthesisError::AssignmentMissing))?;
@@ -195,15 +196,15 @@ impl<'a> ConstraintSynthesizer<Fr> for PosDemo<'a> {
                         }
 
                         // 5.证明yn的二进制展开的正确性：yn_bits = yn
-                        if k == YN_SIZE - 1 {
+                        if k == N - 1 {
                             let yn_bits_val = {
                                 if self.yn[i] == None {
-                                    vec![None; YN_SIZE]
+                                    vec![None; N]
                                 }
                                 else {
                                     let tmp: BigInteger256 = self.yn[i].unwrap().into();
                                     let tmp = tmp.to_bits_le();
-                                    (0..YN_SIZE).map(|i| Some(tmp[i])).collect()
+                                    (0..N).map(|i| Some(tmp[i])).collect()
                                 }
                             };
                             

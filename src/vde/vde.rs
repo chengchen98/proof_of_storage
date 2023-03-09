@@ -1,5 +1,5 @@
 use num_bigint::BigUint;
-use crate::{vde::sloth::{sloth, sloth_inv}, common::data::padding};
+use crate::vde::sloth::{sloth, sloth_inv};
 
 const STEP: usize = 128;
 
@@ -35,16 +35,18 @@ pub fn single_vde_inv(y: &BigUint, p: &BigUint, mode: &str) -> BigUint {
 
 pub fn vde(x: &Vec<u8>, p: &BigUint, mode: &str) -> Vec<u8> {
     let mut res = vec![];
-    for i in (0..x.len()).step_by(STEP - 1) {
-        let buf_x = &x[i .. i + STEP - 1];
+    for i in (0..x.len()).step_by(STEP) {
+        let buf_x = &x[i .. i + STEP];
         let cur_x = BigUint::from_bytes_le(&buf_x);
 
         let y = single_vde(&cur_x, p, mode);
-        let y_bytes = y.to_bytes_le().to_vec();
+        let mut y_bytes = y.to_bytes_le().to_vec();
 
-        let mut y_bytes_pad = padding(&y_bytes, STEP);
+        if y_bytes.len() < STEP {
+            y_bytes.append(&mut vec![0u8; STEP - y_bytes.len()]);
+        }
 
-        res.append(&mut y_bytes_pad);
+        res.append(&mut y_bytes);
     }
     res
 }
@@ -58,7 +60,9 @@ pub fn vde_inv(y: &Vec<u8>, p: &BigUint, mode: &str) -> Vec<u8> {
         let x = single_vde_inv(&cur_y, p, mode);
         let mut x_bytes = x.to_bytes_le().to_vec();
 
-        // let mut x_bytes_pad = padding(&x_bytes, STEP);
+        if x_bytes.len() < STEP {
+            x_bytes.append(&mut vec![0u8; STEP - x_bytes.len()]);
+        }
 
         res.append(&mut x_bytes);
     }
@@ -69,7 +73,7 @@ pub fn vde_inv(y: &Vec<u8>, p: &BigUint, mode: &str) -> Vec<u8> {
 fn test_vde() {
     use std::str::FromStr;
 
-    let x = vec![1u8; 127];
+    let x = vec![0u8; 128];
     let p = BigUint::from_str("162892692473361111348249522320347526171207756760381512377472315857021028422689815298733972916755720242725920671690392382889161699607077776923153532250584503438515484867646456937083398184988196288738761695736655551130641678117347468224388930820784409522417624141309667471624562708798367178136545063034409853007").unwrap();
     let y = vde(&x, &p, "sloth");
     let z = vde_inv(&y, &p, "sloth");
