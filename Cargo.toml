@@ -23,4 +23,7 @@ ark-r1cs-std = { version = "0.3.0", default-features = false, optional = true }
 ark-bls12-381 = { version = "0.3.0", default-features = false, features = ["curve"] }
 
 num-bigint = "0.4"
+rs_merkle = "1.2"
+
 log = "0.4"
+env_logger = "0.10"

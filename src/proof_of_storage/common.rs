@@ -3,7 +3,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{Seek, Read, SeekFrom, Write};
 
 use super::depend::{long_depend, short_depend};
-use super::data_seal::{DATA_L, L2, L1};
+use super::postorage::{DATA_L, L2, L1};
 
 pub fn create_random_file(path: &str) -> std::io::Result<()> {
     //! 随机创建长度为 DATA_L 字节的文件

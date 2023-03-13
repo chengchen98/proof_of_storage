@@ -8,22 +8,25 @@ use super::seal::{copy_and_pad, seal};
 use super::unseal::{unseal, copy_and_compress};
 use super::common::{create_random_file, create_depend};
 
-const ORIGIN_DATA_DIR: [&str; 4] = [r"src", "data_seal", "data", "origin_data"];
-const SEALED_DATA_DIR: [&str; 4] = [r"src", "data_seal", "data", "sealed_data"];
-const UNSEALED_DATA_DIR: [&str; 4] = [r"src", "data_seal", "data", "unsealed_data"];
+const ORIGIN_DATA_DIR: [&str; 4] = [r"src", "proof_of_storage", "data", "origin_data"];
+const SEALED_DATA_DIR: [&str; 4] = [r"src", "proof_of_storage", "data", "sealed_data"];
+const UNSEALED_DATA_DIR: [&str; 4] = [r"src", "proof_of_storage", "data", "unsealed_data"];
 
 // 单位：byte
-pub const DATA_L: usize = 16 * 8 * 127;
-pub const L2: usize = 8 * 127;
-pub const L1: usize = 127;
+pub const DATA_L: usize = 1 * 128 * 1024; // 128KB
 
-pub const PL2: usize = 8 * 128;
-pub const PL1: usize = 128;
+pub const L0: usize = 127;
+pub const L1: usize = 8 * L0; // 1KB
+pub const L2: usize = 8 * L1; // 8KB
+
+pub const PL0: usize = L0 + 1;
+pub const PL1: usize = 8 * PL0;
+pub const PL2: usize = 8 * PL1;
 
 pub const SEAL_ROUNDS: usize = 3;
 pub const MIMC5_HASH_ROUNDS: usize = 110;
 
-pub fn test_deal_seal() {
+pub fn test_postorage() {
     // 随机创建原始数据文件
     let origin_path: PathBuf = ORIGIN_DATA_DIR.iter().collect();
     let origin_path = origin_path.to_str().unwrap();
@@ -60,20 +63,19 @@ pub fn test_deal_seal() {
     // 生成数据块依赖关系
     let (idx_l, idx_s) = create_depend(idx_cnt_l, idx_cnt_s, mode_l, mode_s);   
 
-    println!("-------------------------------------");
-
     // Seal
-    let start = Instant::now();
     copy_and_pad(origin_path, sealed_path);
+
+    let start = Instant::now();
     seal(sealed_path, &idx_l, &idx_s, &hash_cts, hash_key, &vde_key, vde_mode);
     println!("Seal: {:?}", start.elapsed());
-    // println!("-------------------------------------");
 
     // Unseal
     let start = Instant::now();
     unseal(sealed_path, &idx_l, &idx_s, &hash_cts, hash_key, &vde_key, vde_mode);
-    copy_and_compress(sealed_path, unsealed_path);
     println!("Unseal: {:?}", start.elapsed());
+
+    copy_and_compress(sealed_path, unsealed_path);
     println!("-------------------------------------");
 }
 
@@ -82,6 +84,6 @@ fn test() {
     const SAMPLES: usize = 1;
     for i in 0..SAMPLES {
         println!("Sample: {:?}", i);
-        test_deal_seal();
+        test_postorage();
     }
 }

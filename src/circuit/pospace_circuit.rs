@@ -7,7 +7,7 @@ use ark_relations::{
     r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError, Variable},
 };
 
-use crate::proof_of_space::pos::{N, RESPONSE_COUNT};
+use crate::proof_of_space::pospace::{N, RESPONSE_COUNT};
 
 const MIMC5_DF_ROUNDS: usize = 322;
 const MIMC5_HASH_ROUNDS: usize = 110;

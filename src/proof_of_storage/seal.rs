@@ -7,10 +7,10 @@ use crate::vde::vde::vde;
 use crate::common::mimc_hash::multi_mimc5_hash;
 
 use super::common::{read_file, to_block, com_block, vecu8_xor};
-use super::data_seal::{DATA_L, L2, L1, PL2, PL1, SEAL_ROUNDS};
+use super::postorage::{DATA_L, L2, L1, L0, PL2, PL1, PL0, SEAL_ROUNDS};
 
 pub fn copy_and_pad(origin_path: &str, new_path: &str) {
-    //! 将原始文件按照 L1 大小逐个pad（在高位添加一个 0），再存储到新文件
+    //! 将原始文件按照 L0 大小逐个pad（在高位添加一个 0），再存储到新文件
     let mut origin_file = OpenOptions::new()
     .read(true)
     .open(origin_path)
@@ -24,9 +24,9 @@ pub fn copy_and_pad(origin_path: &str, new_path: &str) {
     .open(new_path)
     .unwrap();
 
-    let block_cnt = DATA_L / L1;
+    let block_cnt = DATA_L / L0;
     for cnt in 0..block_cnt {
-        let mut buf = read_file(&mut origin_file, cnt * L1, L1);
+        let mut buf = read_file(&mut origin_file, cnt * L0, L0);
         buf.push(0);
         new_file.write_all(&buf).unwrap();
     }
@@ -79,7 +79,15 @@ pub fn seal(path: &str, idx_l: &Vec<Vec<Vec<usize>>>, idx_s: &Vec<Vec<Vec<usize>
     
                 let cur_block = &block[cnt1].to_vec();
                 let block_xor = vecu8_xor(&depend_data_hash, &cur_block)[..PL1].to_vec();
-                let new_block = vde(&block_xor, vde_key, &vde_mode);
+                let new_block = {
+                    let mut res = vec![];
+                    for idx in (0..PL1).step_by(PL0) {
+                        let input = block_xor[idx .. idx + PL0].to_vec();
+                        let mut vde_res = vde(&input, vde_key, &vde_mode);
+                        res.append(&mut vde_res);
+                    }
+                    res
+                };
 
                 block[cnt1] = new_block;
             }

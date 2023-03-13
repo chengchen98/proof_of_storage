@@ -7,7 +7,7 @@ use crate::vde::vde::vde_inv;
 use crate::common::mimc_hash::multi_mimc5_hash;
 
 use super::common::{read_file, to_block, com_block, vecu8_xor};
-use super::data_seal::{DATA_L, L2, L1, PL2, PL1, SEAL_ROUNDS};
+use super::postorage::{DATA_L, L2, L1, L0, PL2, PL1, PL0, SEAL_ROUNDS};
 
 pub fn copy_and_compress(origin_path: &str, new_path: &str) {
     let mut origin_file = OpenOptions::new()
@@ -23,10 +23,10 @@ pub fn copy_and_compress(origin_path: &str, new_path: &str) {
     .open(new_path)
     .unwrap();
 
-    let block_cnt = DATA_L / L1;
+    let block_cnt = DATA_L / L0;
     for cnt in 0..block_cnt {
-        let buf = read_file(&mut origin_file, cnt * PL1, PL1);
-        new_file.write_all(&buf[0..L1]).unwrap();
+        let buf = read_file(&mut origin_file, cnt * PL0, PL0);
+        new_file.write_all(&buf[0..L0]).unwrap();
     }
 }
 
@@ -80,8 +80,17 @@ pub fn unseal(path: &str, idx_l: &Vec<Vec<Vec<usize>>>, idx_s: &Vec<Vec<Vec<usiz
                 };
     
                 let cur_block = &block[cnt1].to_vec();
-                let vde_res = vde_inv(&cur_block, vde_key, &vde_mode);
-                let new_block = vecu8_xor(&vde_res, &depend_data_hash)[..PL1].to_vec();
+                let vde_inv_res = {
+                    let mut res = vec![];
+                    for idx in (0..PL1).step_by(PL0) {
+                        let input = cur_block[idx .. idx + PL0].to_vec();
+                        let mut vde_inv_res = vde_inv(&input, vde_key, &vde_mode);
+                        res.append(&mut vde_inv_res);
+                    }
+                    res
+                };
+                // let vde_res = vde_inv(&cur_block, vde_key, &vde_mode);
+                let new_block = vecu8_xor(&vde_inv_res, &depend_data_hash)[..PL1].to_vec();
 
                 block[cnt1] = new_block;
             }
