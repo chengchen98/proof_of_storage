@@ -30,7 +30,7 @@ pub fn copy_and_compress(origin_path: &str, new_path: &str) {
     }
 }
 
-pub fn unseal(path: &str, idx_l: &Vec<Vec<Vec<usize>>>, idx_s: &Vec<Vec<Vec<usize>>>, hash_cts: &Vec<Fr>, hash_key: Fr, vde_key: &BigUint) {
+pub fn unseal(path: &str, idx_l: &Vec<Vec<Vec<usize>>>, idx_s: &Vec<Vec<Vec<usize>>>, hash_constants: &Vec<Fr>, hash_key: Fr, vde_key: &BigUint) {
     // 原始文件按照L2长度分块的个数，即原始数据中二级数据块的个数
     let l2_cnt = DATA_L / L2;
     // 一个L2块按照L1长度分块的个数，即每个二级数据块中一级数据块的个数
@@ -74,7 +74,7 @@ pub fn unseal(path: &str, idx_l: &Vec<Vec<Vec<usize>>>, idx_s: &Vec<Vec<Vec<usiz
                         let x_in = Fr::from_le_bytes_mod_order(&depend_data[i .. i + 32]);
                         x_input.push(x_in);
                     }
-                    let res = multi_mimc5_hash(&x_input, hash_key, &hash_cts);
+                    let res = multi_mimc5_hash(&x_input, hash_key, &hash_constants);
                     let res: BigInteger256 = res.into();
                     res.to_bytes_le()
                 };

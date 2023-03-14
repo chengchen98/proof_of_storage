@@ -39,7 +39,7 @@ pub fn prepare_space(path: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn mark_storage(path: &str, key: Fr, m: Fr, df_constants: &Vec<Fr>) -> std::io::Result<()> {
+pub fn mark_space(path: &str, key: Fr, m: Fr, df_constants: &Vec<Fr>) -> std::io::Result<()> {
     //! 计算延迟函数，并将结果修改进存储空间
     // y的前n位作为idx，x作为val，在y位置存储x
     let mut file = OpenOptions::new()
@@ -189,7 +189,7 @@ pub fn response_2(key: Fr, x_response: &Vec<Fr>, m: Fr, df_constants: &Vec<Fr>, 
     //! 生成零知识证明
     let mut rng = rand::thread_rng();
 
-    // 构建电路，生成参数
+    // 构建电路，生成参数，电路可重复使用
     let start = Instant::now();
     let params = {
         let c = PosDemo {
@@ -209,7 +209,7 @@ pub fn response_2(key: Fr, x_response: &Vec<Fr>, m: Fr, df_constants: &Vec<Fr>, 
  
     let pvk = prepare_verifying_key(&params.vk);
     
-    // 生成证明
+    // 针对本次任务生成证明
     let start = Instant::now();
     let proof = {
         let x = (0..x_response.len()).map(|i| Some(x_response[i])).collect::<Vec<_>>();
