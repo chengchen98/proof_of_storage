@@ -37,7 +37,7 @@ pub fn test_pospace() {
     let key: Fr = rng.gen();
     let m: Fr = rng.gen();
 
-    println!("-------------------------------------");
+    println!("data len (byte): {:?}  |  challenge count: {:?}  | response count: {:?}", (N + 1) * 2_usize.pow(N.try_into().unwrap()), CHALLENGE_COUNT, RESPONSE_COUNT);
 
     // 先划分一定大小的存储空间，并用0填满
     let start = Instant::now();
@@ -58,7 +58,7 @@ pub fn test_pospace() {
     let start = Instant::now();
     let (x_response, idx_response, x_hash_response) = response_1(&path, &challenges, key, &hash_constants);
     assert_eq!(x_response.len(), RESPONSE_COUNT);
-    println!("Response 1: {:?}", start.elapsed());
+    println!("--Response 1: {:?}", start.elapsed());
 
     // 计算成功率
     println!("Success rate: {:?} / {:?}", idx_response.len(), RESPONSE_COUNT);
@@ -66,21 +66,23 @@ pub fn test_pospace() {
     // 第二次应答：生成零知识证明
     let start = Instant::now();
     let (pvk, proof) = response_2(key, &x_response, m,  &df_constants,  &challenges, &idx_response, x_hash_response, &hash_constants);
-    println!("Response 2: {:?}", start.elapsed());
+    println!("--Response 2: {:?}", start.elapsed());
     
     // 验证
     let start = Instant::now();
     verify(pvk, proof, key, m, &challenges, &idx_response, x_hash_response);
     println!("Verify: {:?}", start.elapsed());
-    println!("-------------------------------------");
 }
 
 #[test]
 fn test() {
-    const SAMPLES: usize = 1;
     println!("The size of space declared (bits): {:?}", (N+1)*2^N);
+    println!("-------------------------------------");
+
+    const SAMPLES: usize = 1;
     for i in 0..SAMPLES {
         println!("Sample: {:?}", i);
         test_pospace();
+        println!("-------------------------------------");
     }
 }

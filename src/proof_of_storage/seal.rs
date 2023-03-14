@@ -7,7 +7,7 @@ use crate::vde::vde::vde;
 use crate::common::mimc_hash::multi_mimc5_hash;
 
 use super::common::{read_file, to_block, com_block, vecu8_xor};
-use super::postorage::{DATA_L, L2, L1, L0, PL2, PL1, PL0, SEAL_ROUNDS};
+use super::postorage::{DATA_L, L2, L1, L0, PL2, PL1, PL0, SEAL_ROUNDS, VDE_MODE};
 
 pub fn copy_and_pad(origin_path: &str, new_path: &str) {
     //! 将原始文件按照 L0 大小逐个pad（在高位添加一个 0），再存储到新文件
@@ -32,7 +32,7 @@ pub fn copy_and_pad(origin_path: &str, new_path: &str) {
     }
 }
 
-pub fn seal(path: &str, idx_l: &Vec<Vec<Vec<usize>>>, idx_s: &Vec<Vec<Vec<usize>>>, hash_cts: &Vec<Fr>, hash_key: Fr, vde_key: &BigUint, vde_mode: &str) {
+pub fn seal(path: &str, idx_l: &Vec<Vec<Vec<usize>>>, idx_s: &Vec<Vec<Vec<usize>>>, hash_cts: &Vec<Fr>, hash_key: Fr, vde_key: &BigUint) {
     // 原始文件按照 L2 长度分块的个数，即原始数据中二级数据块的个数
     let l2_cnt = DATA_L / L2;
     // 一个 L2 块按照 L1 长度分块的个数，即每个二级数据块中一级数据块的个数
@@ -83,7 +83,7 @@ pub fn seal(path: &str, idx_l: &Vec<Vec<Vec<usize>>>, idx_s: &Vec<Vec<Vec<usize>
                     let mut res = vec![];
                     for idx in (0..PL1).step_by(PL0) {
                         let input = block_xor[idx .. idx + PL0].to_vec();
-                        let mut vde_res = vde(&input, vde_key, &vde_mode);
+                        let mut vde_res = vde(&input, vde_key, VDE_MODE);
                         res.append(&mut vde_res);
                     }
                     res

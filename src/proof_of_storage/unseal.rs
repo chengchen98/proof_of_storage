@@ -7,7 +7,7 @@ use crate::vde::vde::vde_inv;
 use crate::common::mimc_hash::multi_mimc5_hash;
 
 use super::common::{read_file, to_block, com_block, vecu8_xor};
-use super::postorage::{DATA_L, L2, L1, L0, PL2, PL1, PL0, SEAL_ROUNDS};
+use super::postorage::{DATA_L, L2, L1, L0, PL2, PL1, PL0, SEAL_ROUNDS, VDE_MODE};
 
 pub fn copy_and_compress(origin_path: &str, new_path: &str) {
     let mut origin_file = OpenOptions::new()
@@ -30,7 +30,7 @@ pub fn copy_and_compress(origin_path: &str, new_path: &str) {
     }
 }
 
-pub fn unseal(path: &str, idx_l: &Vec<Vec<Vec<usize>>>, idx_s: &Vec<Vec<Vec<usize>>>, hash_cts: &Vec<Fr>, hash_key: Fr, vde_key: &BigUint, vde_mode: &str) {
+pub fn unseal(path: &str, idx_l: &Vec<Vec<Vec<usize>>>, idx_s: &Vec<Vec<Vec<usize>>>, hash_cts: &Vec<Fr>, hash_key: Fr, vde_key: &BigUint) {
     // 原始文件按照L2长度分块的个数，即原始数据中二级数据块的个数
     let l2_cnt = DATA_L / L2;
     // 一个L2块按照L1长度分块的个数，即每个二级数据块中一级数据块的个数
@@ -84,7 +84,7 @@ pub fn unseal(path: &str, idx_l: &Vec<Vec<Vec<usize>>>, idx_s: &Vec<Vec<Vec<usiz
                     let mut res = vec![];
                     for idx in (0..PL1).step_by(PL0) {
                         let input = cur_block[idx .. idx + PL0].to_vec();
-                        let mut vde_inv_res = vde_inv(&input, vde_key, &vde_mode);
+                        let mut vde_inv_res = vde_inv(&input, vde_key, VDE_MODE);
                         res.append(&mut vde_inv_res);
                     }
                     res

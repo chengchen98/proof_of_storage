@@ -1,4 +1,5 @@
 use rand::Rng;
+use std::collections::BTreeSet;
 use std::fs::{File, OpenOptions};
 use std::io::{Seek, Read, SeekFrom, Write};
 
@@ -96,4 +97,17 @@ pub fn vecu8_xor(left: &Vec<u8>, right: &Vec<u8>) -> Vec<u8> {
         }
     }
     res
+}
+
+pub fn generate_sorted_unique_random_numbers(count: usize, range: (usize, usize)) -> Vec<usize> {
+    //! 生成 count 个随机数，范围是 [left, right)
+    let mut rng = rand::thread_rng();
+    let mut set = BTreeSet::new();
+
+    while set.len() < count as usize {
+        let num = rng.gen_range(range.0 .. range.1);
+        set.insert(num);
+    }
+
+    set.into_iter().collect()
 }
