@@ -70,7 +70,7 @@ def get_prime(key_size = 1024):
 
 
 if __name__ == '__main__':
-    n = 128
+    n = 64
     prime = get_prime(n * 8)
     print(prime)
     isprime = is_prime(prime)

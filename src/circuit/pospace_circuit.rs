@@ -7,10 +7,8 @@ use ark_relations::{
     r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError, Variable},
 };
 
-use crate::proof_of_space::pospace::{N, RESPONSE_COUNT};
-
-const MIMC5_DF_ROUNDS: usize = 322;
-const MIMC5_HASH_ROUNDS: usize = 110;
+use crate::proof_of_space::pospace::N;
+use crate::mimc::{mimc_df::MIMC5_DF_ROUNDS, mimc_hash::MIMC5_HASH_ROUNDS};
 
 // 延迟函数计算结果所占比特数
 const Y_SIZE: usize = 256;
@@ -27,9 +25,9 @@ const Y_SIZE: usize = 256;
 
 // 6.证明yn_bits等于y_bits的前n位：yn_bits = y_bits[0..N]
 
-// 7.证明x_hash是x的哈希结果：x_hash = hash(x[0], x[1], .. , x[n-1])
+// 7.证明x_hash是x的哈希结果：x_hash = hash(x[0]||x[1]|| .. ||x[n-1])
 
-pub struct PosDemo<'a> {
+pub struct PospaceDemo<'a> {
     pub key: Option<Fr>, // 验证者input1
     pub x: &'a [Option<Fr>],
     pub m: Option<Fr>, // 验证者input2
@@ -41,11 +39,10 @@ pub struct PosDemo<'a> {
     pub hash_constants: &'a [Fr],
 }
 
-impl<'a> ConstraintSynthesizer<Fr> for PosDemo<'a> {
+impl<'a> ConstraintSynthesizer<Fr> for PospaceDemo<'a> {
     fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
         assert_eq!(self.df_constants.len(), MIMC5_DF_ROUNDS);
         assert_eq!(self.hash_constants.len(), MIMC5_HASH_ROUNDS);
-        assert_eq!(self.yn.len(), RESPONSE_COUNT);
 
         let key_val = self.key;
         let key = cs.new_input_variable(|| key_val.ok_or(SynthesisError::AssignmentMissing))?;

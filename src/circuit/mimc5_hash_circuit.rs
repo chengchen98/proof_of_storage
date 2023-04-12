@@ -9,7 +9,7 @@ use ark_relations::{
     r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError, Variable},
 };
 
-const MIMC5_HASH_ROUNDS: usize = 110;
+use crate::mimc::mimc_hash::MIMC5_HASH_ROUNDS;
 
 /// This is our demo circuit for proving knowledge of the
 /// preimage of a MiMC hash invocation.
@@ -157,7 +157,7 @@ fn test_mimc5_hash() {
     use ark_std::rand::Rng;
     use ark_std::test_rng;
     use ark_bls12_381::{Fr, Bls12_381};
-    use crate::common::mimc_hash::multi_mimc5_hash;
+    use crate::mimc::mimc_hash::multi_mimc5_hash;
 
     // We're going to use the Groth proving system.
     use ark_groth16::{

@@ -3,8 +3,8 @@
 // 110
 use ark_ff::Field;
 
-const MIMC5_HASH_ROUNDS: usize = 110;
-const MIMC7_HASH_ROUNDS: usize = 91;
+pub const MIMC5_HASH_ROUNDS: usize = 110;
+pub const MIMC7_HASH_ROUNDS: usize = 91;
 
 pub fn mimc7_hash<F: Field>(x_in: F, key: F, constants: &[F]) -> F {
     let mut h: F = F::zero();

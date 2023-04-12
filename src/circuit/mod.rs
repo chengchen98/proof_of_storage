@@ -11,3 +11,5 @@ pub mod mimc7_hash_circuit;
 pub mod mimc5_hash_circuit;
 
 pub mod pospace_circuit;
+
+pub mod sloth_circuit;

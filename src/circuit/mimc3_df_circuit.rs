@@ -9,7 +9,7 @@ use ark_relations::{
     r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError, Variable},
 };
 
-const MIMC3_DF_ROUNDS: usize = 322;
+use crate::mimc::mimc_df::MIMC3_DF_ROUNDS;
 
 /// This is our demo circuit for proving knowledge of the
 /// preimage of a MiMC hash invocation.
@@ -95,7 +95,7 @@ fn test_mimc3_df() {
     use ark_std::rand::Rng;
     use ark_std::test_rng;
     use ark_bls12_381::{Fr, Bls12_381};
-    use crate::common::mimc_df::mimc3_df;
+    use crate::mimc::mimc_df::mimc3_df;
 
     // We're going to use the Groth proving system.
     use ark_groth16::{

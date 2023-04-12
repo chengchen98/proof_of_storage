@@ -24,11 +24,10 @@ impl<'a, F: Field> ConstraintSynthesizer<F> for PowDemo<'a, F> {
         let cs = ns.cs();
 
         let mut y_val = Some(F::one());
-        let mut g_val = self.g;
-
-        let mut g = cs.new_witness_variable(|| g_val.ok_or(SynthesisError::AssignmentMissing))?;
-
         let mut y = cs.new_witness_variable(|| y_val.ok_or(SynthesisError::AssignmentMissing))?;
+
+        let mut g_val = self.g;
+        let mut g = cs.new_witness_variable(|| g_val.ok_or(SynthesisError::AssignmentMissing))?;
 
         for i in 0..INPUT_SIZE {
             let bit = self.x_bits[i];

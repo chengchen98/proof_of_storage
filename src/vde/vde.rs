@@ -1,23 +1,24 @@
-use num_bigint::BigUint;
-use crate::vde::sloth::{sloth, sloth_inv};
+use num_bigint::{BigInt, Sign};
+use super::sloth::{sloth, sloth_inv};
+use crate::proof_of_storage::postorage::L0;
 
-const STEP: usize = 128;
+pub const STEP: usize = L0 + 1;
 
-pub fn single_vde(x: &BigUint, p: &BigUint, mode: &str) -> BigUint {
+pub fn single_vde(x: &BigInt, p: &BigInt, t: usize, mode: &str) -> BigInt {
     if mode == "sloth" {
-        return sloth(x, p);
+        return sloth(x, p, t);
     }
     else {
-        return sloth(x, p);
+        return sloth(x, p, t);
     }
 }
 
-pub fn single_vde_inv(y: &BigUint, p: &BigUint, mode: &str) -> BigUint {
+pub fn single_vde_inv(y: &BigInt, p: &BigInt, t: usize, mode: &str) -> BigInt {
     if mode == "sloth" {
-        return sloth_inv(y, p);
+        return sloth_inv(y, p, t);
     }
     else {
-        return sloth_inv(y, p);
+        return sloth_inv(y, p, t);
     }
 }
 
@@ -33,14 +34,14 @@ pub fn single_vde_inv(y: &BigUint, p: &BigUint, mode: &str) -> BigUint {
 //     padding(&x.to_bytes_le().to_vec(), y.len())
 // }
 
-pub fn vde(x: &Vec<u8>, p: &BigUint, mode: &str) -> Vec<u8> {
+pub fn vde(x: &Vec<u8>, p: &BigInt, t: usize, mode: &str) -> Vec<u8> {
     let mut res = vec![];
     for i in (0..x.len()).step_by(STEP) {
         let buf_x = &x[i .. i + STEP];
-        let cur_x = BigUint::from_bytes_le(&buf_x);
+        let cur_x = BigInt::from_bytes_le(Sign::Plus, &buf_x);
 
-        let y = single_vde(&cur_x, p, mode);
-        let mut y_bytes = y.to_bytes_le().to_vec();
+        let y = single_vde(&cur_x, p, t, mode);
+        let mut y_bytes = y.to_bytes_le().1.to_vec();
 
         if y_bytes.len() < STEP {
             y_bytes.append(&mut vec![0u8; STEP - y_bytes.len()]);
@@ -51,14 +52,14 @@ pub fn vde(x: &Vec<u8>, p: &BigUint, mode: &str) -> Vec<u8> {
     res
 }
 
-pub fn vde_inv(y: &Vec<u8>, p: &BigUint, mode: &str) -> Vec<u8> {
+pub fn vde_inv(y: &Vec<u8>, p: &BigInt, t: usize, mode: &str) -> Vec<u8> {
     let mut res = vec![];
     for i in (0..y.len()).step_by(STEP) {
         let buf_y = &y[i .. i + STEP];
-        let cur_y = BigUint::from_bytes_le(&buf_y);
+        let cur_y = BigInt::from_bytes_le(Sign::Plus,&buf_y);
 
-        let x = single_vde_inv(&cur_y, p, mode);
-        let mut x_bytes = x.to_bytes_le().to_vec();
+        let x = single_vde_inv(&cur_y, p, t, mode);
+        let mut x_bytes = x.to_bytes_le().1.to_vec();
 
         if x_bytes.len() < STEP {
             x_bytes.append(&mut vec![0u8; STEP - x_bytes.len()]);
@@ -72,10 +73,30 @@ pub fn vde_inv(y: &Vec<u8>, p: &BigUint, mode: &str) -> Vec<u8> {
 #[test]
 fn test_vde() {
     use std::str::FromStr;
+    use std::time::Instant;
+    use super::sloth::P_1024;
 
-    let x = vec![0u8; 128];
-    let p = BigUint::from_str("162892692473361111348249522320347526171207756760381512377472315857021028422689815298733972916755720242725920671690392382889161699607077776923153532250584503438515484867646456937083398184988196288738761695736655551130641678117347468224388930820784409522417624141309667471624562708798367178136545063034409853007").unwrap();
-    let y = vde(&x, &p, "sloth");
-    let z = vde_inv(&y, &p, "sloth");
-    assert_eq!(x, z);
+    const T: usize = 3;
+    const N: usize = 10;
+    let x =vec![1u8; 128 * N];
+    let p = &BigInt::from_str(P_1024).unwrap();
+
+    const SAMPLES: usize = 10;
+    for i in 0..SAMPLES {
+        println!("sample: {:?}  |  n: {:?}", i, N);
+        
+        let start = Instant::now();
+        let y = vde(&x, p, T, "sloth");
+        let cost1 = start.elapsed();
+        println!("Vde: {:?}", cost1);
+
+        let start = Instant::now();
+        let z = vde_inv(&y, p, T, "sloth");
+        let cost2 = start.elapsed();
+        println!("Vde inv: {:?}", cost2);
+
+        println!("vde / vde inv: {:?}", cost1.as_secs_f32() / cost2.as_secs_f32());
+        assert_eq!(x, z);
+        println!("-------------------------------------");
+    }
 }
