@@ -5,7 +5,8 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Instant;
-use num_bigint::BigInt;
+// use num_bigint::BigInt;
+use rug::Integer;
 
 use super::prover::{create_depend, copy_and_pad, seal, unseal, copy_and_compress, response};
 use super::verifier::{create_random_file, create_challenges};
@@ -20,16 +21,16 @@ pub const SEALED_DATA_DIR: [&str; 4] = [r"src", "proof_of_storage", "data", "sea
 pub const UNSEALED_DATA_DIR: [&str; 4] = [r"src", "proof_of_storage", "data", "unsealed_data"];
 
 // 单位：byte
-pub const DATA_L: usize = 127 * 4 * 1024 * 4;
-pub const DATA_PL: usize = 128 * 4 * 1024 * 4;
+pub const DATA_L: usize = 127 * 8 * 1024 * 1024;
+pub const DATA_PL: usize = 128 * 8 * 1024 * 1024;
 
 pub const L0: usize = 127; // 127B
-pub const L1: usize = L0 * 4 * 4;
-pub const L2: usize = L1 * 256;
+pub const L1: usize = L0 * 8 * 1024;
+pub const L2: usize = L1 * 32;
 
 pub const PL0: usize = L0 + 1;
-pub const PL1: usize = PL0 * 4 * 4;
-pub const PL2: usize = PL1 * 256;
+pub const PL1: usize = PL0 * 8 * 1024;
+pub const PL2: usize = PL1 * 32;
 
 pub const SEAL_ROUNDS: usize = 3;
 pub const SLOTH_ROUNDS: usize = 3;
@@ -42,7 +43,7 @@ pub const IDX_CNT_S: usize = 3;
 
 pub const LEAVES_TO_PROVE_COUNT: usize = 1;
 
-pub fn prepare_params() -> (usize, Fr, Vec<Fr>, BigInt, Vec<Vec<usize>>, Vec<Vec<Vec<usize>>>) {
+pub fn prepare_params() -> (usize, Fr, Vec<Fr>, Integer, Vec<Vec<usize>>, Vec<Vec<Vec<usize>>>) {
     // 准备存储证明所需要的参数
     let mut rng = rand::thread_rng();
 
@@ -55,10 +56,10 @@ pub fn prepare_params() -> (usize, Fr, Vec<Fr>, BigInt, Vec<Vec<usize>>, Vec<Vec
     // vde key
     let vde_key = {
         if (L0 + 1) * 8 == 2048 {
-            BigInt::from_str(P_2048).unwrap()
+            Integer::from_str(P_2048).unwrap()
         }
         else {
-            BigInt::from_str(P_1024).unwrap()
+            Integer::from_str(P_1024).unwrap()
         }
     };
     
@@ -70,7 +71,7 @@ pub fn prepare_params() -> (usize, Fr, Vec<Fr>, BigInt, Vec<Vec<usize>>, Vec<Vec
     (l2_cnt, hash_key, hash_constants, vde_key, idx_l, idx_s)
 }
 
-pub fn postorage(origin_path: &str, sealed_path: &str, unsealed_path: &str, block_cnt: usize, hash_key: Fr, hash_constants: &Vec<Fr>, vde_key: &BigInt, idx_l: Vec<Vec<usize>>, idx_s: Vec<Vec<Vec<usize>>>, save_file: &mut File, should_save: bool) {
+pub fn postorage(origin_path: &str, sealed_path: &str, unsealed_path: &str, block_cnt: usize, hash_key: Fr, hash_constants: &Vec<Fr>, vde_key: &Integer, idx_l: Vec<Vec<usize>>, idx_s: Vec<Vec<Vec<usize>>>, save_file: &mut File, should_save: bool) {
     // Seal
     print!("Start to copy and pad origin data...");
     io::stdout().flush().unwrap();
@@ -108,7 +109,7 @@ pub fn postorage(origin_path: &str, sealed_path: &str, unsealed_path: &str, bloc
         save_file.write_all(["[P] Seal, ", &cost1.as_secs_f32().to_string(), "\n"].concat().as_bytes()).unwrap();
         save_file.write_all(["vde, ", &seal_vde_cost.to_string(), ", file, ", &seal_file_cost.to_string(), "\n"].concat().as_bytes()).unwrap();
         save_file.write_all(["[P] Unseal, ", &cost2.as_secs_f32().to_string(), "\n"].concat().as_bytes()).unwrap();
-        save_file.write_all(["vde, ", &unseal_vde_cost.to_string(), ", file, ", &unseal_file_cost.to_string(), "\n\n"].concat().as_bytes()).unwrap();
+        save_file.write_all(["vde inv, ", &unseal_vde_cost.to_string(), ", file, ", &unseal_file_cost.to_string(), "\n\n"].concat().as_bytes()).unwrap();
     }
 }
 

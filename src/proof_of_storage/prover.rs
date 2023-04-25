@@ -1,10 +1,12 @@
 use ark_bls12_381::Fr;
-use num_bigint::BigInt;
+// use num_bigint::BigInt;
+use rug::Integer;
 use rs_merkle::{algorithms::Sha256, MerkleProof};
 use std::{fs::OpenOptions, io::{Write, Seek, SeekFrom}, time::Instant};
 use ark_ff::{BigInteger256, BigInteger, PrimeField};
 
-use crate::vde::vde::{vde, vde_inv};
+// use crate::vde::vde::{vde, vde_inv};
+use  crate::vde::rug_vde::{vde, vde_inv};
 use crate::mimc::mimc_hash::multi_mimc5_hash;
 
 use super::{common::{read_file, to_block, com_block, vecu8_xor}, depend::{long_depend, short_depend}, postorage::DATA_PL, merkle_tree::{generate_merkle_tree, generate_merkle_proof}};
@@ -51,7 +53,7 @@ pub fn copy_and_pad(origin_path: &str, new_path: &str) {
     }
 }
 
-pub fn seal(path: &str, block_cnt: usize, idx_l: &Vec<Vec<usize>>, idx_s: &Vec<Vec<Vec<usize>>>, hash_constants: &Vec<Fr>, hash_key: Fr, vde_key: &BigInt) 
+pub fn seal(path: &str, block_cnt: usize, idx_l: &Vec<Vec<usize>>, idx_s: &Vec<Vec<Vec<usize>>>, hash_constants: &Vec<Fr>, hash_key: Fr, vde_key: &Integer) 
 -> (f32, f32) {
     let mut file = OpenOptions::new()
     .read(true)
@@ -164,7 +166,7 @@ pub fn copy_and_compress(origin_path: &str, new_path: &str) {
     }
 }
 
-pub fn unseal(path: &str, block_cnt: usize, idx_l: &Vec<Vec<usize>>, idx_s: &Vec<Vec<Vec<usize>>>, hash_constants: &Vec<Fr>, hash_key: Fr, vde_key: &BigInt) 
+pub fn unseal(path: &str, block_cnt: usize, idx_l: &Vec<Vec<usize>>, idx_s: &Vec<Vec<Vec<usize>>>, hash_constants: &Vec<Fr>, hash_key: Fr, vde_key: &Integer) 
 -> (f32, f32) {
     let mut file = OpenOptions::new()
     .read(true)

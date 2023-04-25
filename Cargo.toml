@@ -24,3 +24,5 @@ ark-bls12-381 = { version = "0.3.0", default-features = false, features = ["curv
 
 num-bigint = "0.4"
 rs_merkle = "1.2"
+
+rug = "1.19.2"

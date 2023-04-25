@@ -20,7 +20,6 @@ pub fn fmod(x: Fr, m: Fr) -> Fr {
     x - x.mul(m.inverse().unwrap()).mul(m)
 }
 
-
 impl ConstraintSynthesizer<Fr> for SlothInvDemo {
     fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
         let mut res_val = self.y;

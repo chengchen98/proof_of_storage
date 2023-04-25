@@ -1,4 +1,5 @@
-use num_bigint::{BigInt, ToBigInt};
+use rug::{Integer, integer::Order};
+use std::str::FromStr;
 
 pub const P_64: &str = "13758676365741467507";
 pub const P_128: &str = "284966011836017917039797442435648636163";
@@ -9,42 +10,42 @@ pub const P_2048: &str = "222873602269088222339928197363929444344750436922656469
 
 pub const DATA_DIR: [&str; 4] = [r"src", "vde", "data", "sloth"];
 
-pub fn legendre(mut x: BigInt, p: &BigInt) -> BigInt {
-    let mut s = 1.to_bigint().unwrap();
-    if x.clone() == 0.to_bigint().unwrap() {
-        return 0.to_bigint().unwrap();
+pub fn legendre(mut x: Integer, p: &Integer) -> Integer {
+    let mut s = Integer::from_str("1").unwrap();
+    if x.clone() == Integer::from_str("0").unwrap() {
+        return Integer::from_str("0").unwrap();
     }
-    else if x.clone() == 1.to_bigint().unwrap() {
-        return 1.to_bigint().unwrap();
+    else if x.clone() == Integer::from_str("1").unwrap() {
+        return Integer::from_str("1").unwrap();
     }
     else {
         let e = {
-            let mut e = 0.to_bigint().unwrap();
-            while x.clone() % 2 == 0.to_bigint().unwrap() {
-                x = x.clone() / 2.to_bigint().unwrap();
-                e += 1.to_bigint().unwrap();
+            let mut e = Integer::from_str("0").unwrap();
+            while x.clone() % 2 == Integer::from_str("0").unwrap() {
+                x = x.clone() / Integer::from_str("2").unwrap();
+                e += Integer::from_str("1").unwrap();
             }
             e
         };
 
-        if e % 2.to_bigint().unwrap() == 0.to_bigint().unwrap() {
-            s = 1.to_bigint().unwrap();
+        if e % 2 == Integer::from_str("0").unwrap() {
+            s = Integer::from_str("1").unwrap();
         }
         else {
-            if p.clone() % 8 == 1.to_bigint().unwrap() || p.clone() % 8 == 7.to_bigint().unwrap() {
-                s = 1.to_bigint().unwrap();
+            if p.clone() % 8 == Integer::from_str("1").unwrap() || p.clone() % 8 == Integer::from_str("7").unwrap() {
+                s = Integer::from_str("1").unwrap();
             }
-            if p.clone() % 8 == 3.to_bigint().unwrap() || p.clone() % 8 == 5.to_bigint().unwrap() {
-                s = -1.to_bigint().unwrap();
+            if p.clone() % 8 == Integer::from_str("3").unwrap() || p.clone() % 8 == Integer::from_str("5").unwrap() {
+                s = Integer::from_str("-1").unwrap();
             }
         }
 
-        if p.clone() % 4 == 3.to_bigint().unwrap() && x.clone() % 4 == 3.to_bigint().unwrap() {
+        if p.clone() % 4 == Integer::from_str("3").unwrap() && x.clone() % 4 == Integer::from_str("3").unwrap() {
             s = -s;
         }
 
         let p1 = p.clone() % x.clone();
-        if x.clone() == 1.to_bigint().unwrap() {
+        if x.clone() == Integer::from_str("1").unwrap() {
             return s;
         }
         else {
@@ -53,33 +54,40 @@ pub fn legendre(mut x: BigInt, p: &BigInt) -> BigInt {
     }
 }
 
-pub fn single_sloth(x: &BigInt, p: &BigInt) -> BigInt {
+#[test]
+fn test_legendre() {
+    let x = Integer::from_str("118").unwrap();
+    let p = Integer::from_str("229").unwrap();
+    println!("{:?}", legendre(x, &p));
+}
+
+pub fn single_sloth(x: &Integer, p: &Integer) -> Integer {
     let flag = legendre(x.clone(), &p);
-    // let flag = x.modpow(&((p - 1.to_bigint().unwrap()) / 2.to_bigint().unwrap()), &p);
+    // let flag = x.clone().pow_mod(&((p - Integer::from_str("1").unwrap()) / Integer::from_str("2").unwrap()), &p).unwrap();
     let mut y;
-    if flag == 1.to_bigint().unwrap() {
-        y = x.modpow(&((p + 1.to_bigint().unwrap()) / 4.to_bigint().unwrap()), &p);
-        if y.clone() % 2 == 1.to_bigint().unwrap() {
-            y = (p - y) % p;
+    if flag == Integer::from_str("1").unwrap() {
+        y = x.clone().pow_mod(&((p + Integer::from_str("1").unwrap()) / Integer::from_str("4").unwrap()), &p).unwrap();
+        if y.clone() % 2 == Integer::from_str("1").unwrap() {
+            y = (p .clone()- y) % p;
         }
     }
     else {
-        let xx = (p - x) % p;
-        y = xx.modpow(&((p + 1.to_bigint().unwrap()) / 4.to_bigint().unwrap()), &p);
-        if y.clone() % 2 == 0.to_bigint().unwrap() {
-            y = (p - y) % p;
+        let xx = (p.clone() - x) % p;
+        y = xx.pow_mod(&((p + Integer::from_str("1").unwrap()) / Integer::from_str("4").unwrap()), &p).unwrap();
+        if y.clone() % 2 == Integer::from_str("0").unwrap() {
+            y = (p.clone() - y) % p;
         }
     }
 
-    if y.clone() % 2 == 1.to_bigint().unwrap() {
-        return (y + 1.to_bigint().unwrap()) % p;
+    if y.clone() % 2 == Integer::from_str("1").unwrap() {
+        return (y + Integer::from_str("1").unwrap()) % p;
     }
     else {
-        return (y - 1.to_bigint().unwrap()) % p;
+        return (y - Integer::from_str("1").unwrap()) % p;
     }
 }
 
-pub fn sloth(y: &BigInt, p: &BigInt, t: usize) -> BigInt {
+pub fn sloth(y: &Integer, p: &Integer, t: usize) -> Integer {
     let mut y = y.clone();
     for _ in 0..t {
         y = single_sloth(&y, &p);
@@ -87,24 +95,24 @@ pub fn sloth(y: &BigInt, p: &BigInt, t: usize) -> BigInt {
     y
 }
 
-pub fn single_sloth_inv(y: &BigInt, p: &BigInt) -> BigInt {
+pub fn single_sloth_inv(y: &Integer, p: &Integer) -> Integer {
     let x;
-    if y.clone() % 2 == 1.to_bigint().unwrap() {
-        x = (y + 1.to_bigint().unwrap()) % p;
+    if y.clone() % 2 == Integer::from_str("1").unwrap() {
+        x = (y + Integer::from_str("1").unwrap()) % p;
     }
     else {
-        x = (y - 1.to_bigint().unwrap()) % p;
+        x = (y - Integer::from_str("1").unwrap()) % p;
     }
 
-    if x.clone() % 2 == 1.to_bigint().unwrap() {
-        return (p - (x.pow(2) % p)) % p;
+    if x.clone() % 2 == Integer::from_str("1").unwrap() {
+        return p.clone() - x.pow_mod(&Integer::from_str("2").unwrap(), &p).unwrap() % p;
     }
     else {
-        return x.pow(2) % p;
+        return x.pow_mod(&Integer::from_str("2").unwrap(), &p).unwrap();
     }
 }
 
-pub fn sloth_inv(y: &BigInt, p: &BigInt, t: usize) -> BigInt {
+pub fn sloth_inv(y: &Integer, p: &Integer, t: usize) -> Integer {
     let mut x = y.clone();
     for _ in 0..t {
         x = single_sloth_inv(&x, p);
@@ -113,16 +121,8 @@ pub fn sloth_inv(y: &BigInt, p: &BigInt, t: usize) -> BigInt {
 }
 
 #[test]
-fn test_legendre() {
-    let x = 118.to_bigint().unwrap();
-    let p = 229.to_bigint().unwrap();
-    println!("{:?}", legendre(x, &p));
-}
-
-#[test]
 fn test_sloth() {
     use rand::Rng;
-    use num_bigint::Sign;
     use std::str::FromStr;
     use std::time::Instant;
     use std::{path::PathBuf, fs::OpenOptions, io::Write};
@@ -139,32 +139,32 @@ fn test_sloth() {
     .open(save_path)
     .unwrap();
 
-    const T: usize = 10;
+    const T: usize = 3;
     const P_BITS: usize = 1024;
     let p;
 
     if P_BITS == 64 {
-        p = BigInt::from_str(P_64).unwrap();
+        p = Integer::from_str(P_64).unwrap();
     }
     else if P_BITS == 128 {
-        p = BigInt::from_str(P_128).unwrap();
+        p = Integer::from_str(P_128).unwrap();
     }
     else if P_BITS == 256 {
-        p = BigInt::from_str(P_256).unwrap();
+        p = Integer::from_str(P_256).unwrap();
     }
     else if P_BITS == 512 {
-        p = BigInt::from_str(P_512).unwrap();
+        p = Integer::from_str(P_512).unwrap();
     }
     else if P_BITS == 1024 {
-        p = BigInt::from_str(P_1024).unwrap();
+        p = Integer::from_str(P_1024).unwrap();
     }
     else {
-        p = BigInt::from_str(P_2048).unwrap();
+        p = Integer::from_str(P_2048).unwrap();
     }
     
     let mut rng = rand::thread_rng();
     
-    const SAMPLES: usize = 1000;
+    const SAMPLES: usize = 10000;
     let mut t1 = 0.0;
     let mut t2 = 0.0;
     for _ in 0..SAMPLES {
@@ -172,8 +172,8 @@ fn test_sloth() {
         .map(|_| {
             let idx = rng.gen_range(0..=255);
             idx
-        }).collect::<Vec<_>>();
-        let x = BigInt::from_bytes_le(Sign::Plus, &x_str);
+        }).collect::<Vec<u8>>();
+        let x = Integer::from_digits(&x_str, Order::Lsf);
 
         let start = Instant::now();
         let y = sloth(&x, &p, T);

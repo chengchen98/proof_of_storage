@@ -1,10 +1,11 @@
+use rand::Rng;
 use ark_bls12_381::Fr;
 use ark_ff::{PrimeField, BigInteger256, BigInteger};
-use num_bigint::BigInt;
-use rand::Rng;
+// use num_bigint::BigInt;
+use rug::Integer;
 use rs_merkle::{MerkleProof, algorithms::Sha256};
 use std::{fs::OpenOptions, io::Write, collections::BTreeSet};
-use crate::{proof_of_storage::postorage::{L2, L1}, mimc::mimc_hash::multi_mimc5_hash, vde::vde::vde_inv};
+use crate::{proof_of_storage::postorage::{L2, L1}, mimc::mimc_hash::multi_mimc5_hash, vde::rug_vde::vde_inv};
 use super::{common::{read_file, to_block, vecu8_xor}, merkle_tree::verify_merkle_proof, postorage::{PL0, PL1, VDE_MODE, SEAL_ROUNDS, SLOTH_ROUNDS, L0}};
 
 pub fn create_random_file(path: &str, data_len: usize) -> std::io::Result<()> {
@@ -38,7 +39,7 @@ pub fn create_challenges(n: usize, range: (usize, usize)) -> Vec<usize> {
     set.into_iter().collect()
 }
 
-pub fn verify(path: &str, blocks_idx: &Vec<usize>, idx_s: &Vec<Vec<Vec<usize>>>, blocks: Vec<Vec<Vec<u8>>>, depend_blocks: Vec<Vec<Vec<Vec<u8>>>>, proof: MerkleProof<Sha256>, root: [u8; 32], indices_to_prove: &Vec<usize>, leaves: &Vec<[u8; 32]>, hash_constants: &Vec<Fr>, hash_key: Fr, vde_key: &BigInt) {
+pub fn verify(path: &str, blocks_idx: &Vec<usize>, idx_s: &Vec<Vec<Vec<usize>>>, blocks: Vec<Vec<Vec<u8>>>, depend_blocks: Vec<Vec<Vec<Vec<u8>>>>, proof: MerkleProof<Sha256>, root: [u8; 32], indices_to_prove: &Vec<usize>, leaves: &Vec<[u8; 32]>, hash_constants: &Vec<Fr>, hash_key: Fr, vde_key: &Integer) {
     verify_merkle_proof(proof, root, &indices_to_prove, leaves);
 
     for i in 0..blocks.len() {
