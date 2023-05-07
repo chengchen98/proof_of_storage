@@ -1,5 +1,76 @@
-use std::fs::File;
-use std::io::{Seek, Read, SeekFrom};
+use std::fs::{File, OpenOptions};
+use std::io::{Seek, Read, SeekFrom, Write};
+use std::path::PathBuf;
+use md5::{Md5, Digest};
+use rand::Rng;
+use rug::Integer;
+use rug::integer::Order;
+use blake3;
+
+pub const HASH_RES_DIR: [&str; 4] = [r"src", "proof_of_storage", "data", "hash"];
+
+pub fn md5_hash(message: &Vec<u8>) -> Vec<u8> {
+    let mut hasher = Md5::new();
+    hasher.update(message);
+    let res = hasher.finalize();
+    res.as_slice().to_vec()
+}
+
+pub fn blake3_hash(message: &Vec<u8>) -> Vec<u8> {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(message);
+    let res = hasher.finalize();
+    res.as_bytes().to_vec()
+}
+
+#[test]
+fn test() {
+    use std::time::Instant;
+
+    let path: PathBuf = HASH_RES_DIR.iter().collect();
+    let path = path.to_str().unwrap();
+    let mut save_file = OpenOptions::new()
+    .read(true)
+    .write(true)
+    .append(true)
+    .create(true) 
+    .open(path)
+    .unwrap();
+
+    let should_save = true;
+
+    let message_len = 1024;
+    let mut md5_cost = 0.0;
+    let mut blake3_cost = 0.0;
+
+    const SAMPLES: usize = 10000;
+    for _ in 0..SAMPLES {
+        let message = {
+            let mut rng = rand::thread_rng();
+            let mut res = vec![];
+            for _ in 0..message_len {
+                let buf: u8 = rng.gen_range(0u8..=255u8);
+                res.push(buf);
+            }
+            res
+        };
+    
+        let start = Instant::now();
+        let _ = md5_hash(&message);
+        md5_cost += start.elapsed().as_secs_f32();
+    
+        let start = Instant::now();
+        let _ = blake3_hash(&message);
+        blake3_cost += start.elapsed().as_secs_f32();
+    }
+
+    if should_save == true {
+        md5_cost /= SAMPLES as f32;
+        blake3_cost /= SAMPLES as f32;
+        save_file.write_all(["message len (bytes), ", &message_len.to_string(), ", md5, ", &md5_cost.to_string(), ", blake3, ", &blake3_cost.to_string(), "\n\n"].concat().as_bytes()).unwrap();
+    }
+}
+
 
 pub fn read_file(file: &mut File, begin_idx: usize, len: usize) -> Vec<u8> {
     //! 从 file 的 begin_idx 字节开始，读取 len 字节
@@ -22,9 +93,10 @@ pub fn com_block(data: &Vec<Vec<u8>>) -> Vec<u8> {
     //! 将多个一级数据块合并成一个二级数据块
     let mut res = vec![];
     for i in 0..data.len() {
-        for j in 0..data[i].len() {
-            res.push(data[i][j]);
-        }
+        // for j in 0..data[i].len() {
+        //     res.push(data[i][j]);
+        // }
+        res.append(&mut data[i].clone());
     }
     res
 }
@@ -51,5 +123,23 @@ pub fn vecu8_xor(left: &Vec<u8>, right: &Vec<u8>) -> Vec<u8> {
             res.push(right[j]);
         }
     }
+    res
+}
+
+pub fn modadd(left: &Vec<u8>, right: &Vec<u8>, p: &Integer) -> Vec<u8> {
+    let left_int = Integer::from_digits(left, Order::Lsf);
+    let right_int = Integer::from_digits(right, Order::Lsf);
+    let res_int = (left_int + right_int) % p;
+    let mut res = res_int.to_digits::<u8>(Order::Lsf);
+    res.append(&mut vec![0u8; left.len() - res.len()]);
+    res
+}
+
+pub fn modsub(left: &Vec<u8>, right: &Vec<u8>, p: &Integer) -> Vec<u8> {
+    let left_int = Integer::from_digits(left, Order::Lsf);
+    let right_int = Integer::from_digits(right, Order::Lsf);
+    let res_int = (left_int + p - right_int) % p;
+    let mut res = res_int.to_digits::<u8>(Order::Lsf);
+    res.append(&mut vec![0u8; left.len() - res.len()]);
     res
 }

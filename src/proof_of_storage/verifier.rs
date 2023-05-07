@@ -1,7 +1,6 @@
 use rand::Rng;
 use ark_bls12_381::Fr;
 use ark_ff::{PrimeField, BigInteger256, BigInteger};
-// use num_bigint::BigInt;
 use rug::Integer;
 use rs_merkle::{MerkleProof, algorithms::Sha256};
 use std::{fs::OpenOptions, io::Write, collections::BTreeSet};
@@ -81,7 +80,7 @@ pub fn verify(path: &str, blocks_idx: &Vec<usize>, idx_s: &Vec<Vec<Vec<usize>>>,
                     let mut res = vec![];
                     for idx in (0..PL1).step_by(PL0) {
                         let input = cur_block[idx .. idx + PL0].to_vec();
-                        let mut vde_inv_res = vde_inv(&input, vde_key, SLOTH_ROUNDS, VDE_MODE);
+                        let mut vde_inv_res = vde_inv(&input, vde_key, SLOTH_ROUNDS, VDE_MODE, PL0);
                         res.append(&mut vde_inv_res);
                     }
                     res

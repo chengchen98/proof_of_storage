@@ -1,4 +1,4 @@
-use rug::{Integer, integer::Order};
+use rug::Integer;
 use std::str::FromStr;
 
 pub const P_64: &str = "13758676365741467507";
@@ -125,9 +125,10 @@ fn test_sloth() {
     use rand::Rng;
     use std::str::FromStr;
     use std::time::Instant;
+    use rug::integer::Order;
     use std::{path::PathBuf, fs::OpenOptions, io::Write};
 
-    let should_save = true;
+    let should_save = false;
 
     let path: PathBuf = DATA_DIR.iter().collect();
     let save_path = path.to_str().unwrap();
@@ -164,7 +165,7 @@ fn test_sloth() {
     
     let mut rng = rand::thread_rng();
     
-    const SAMPLES: usize = 10000;
+    const SAMPLES: usize = 1000;
     let mut t1 = 0.0;
     let mut t2 = 0.0;
     for _ in 0..SAMPLES {

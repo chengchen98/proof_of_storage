@@ -140,7 +140,7 @@ fn test_sloth() {
     .unwrap();
 
     const T: usize = 10;
-    const P_BITS: usize = 1024;
+    const P_BITS: usize = 128;
     let p;
 
     if P_BITS == 64 {

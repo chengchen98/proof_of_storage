@@ -6,7 +6,7 @@ use std::{fs::OpenOptions, io::{Write, Seek, SeekFrom}, time::Instant};
 use ark_ff::{BigInteger256, BigInteger, PrimeField};
 
 // use crate::vde::vde::{vde, vde_inv};
-use  crate::vde::rug_vde::{vde, vde_inv};
+use crate::vde::rug_vde::{vde, vde_inv};
 use crate::mimc::mimc_hash::multi_mimc5_hash;
 
 use super::{common::{read_file, to_block, com_block, vecu8_xor}, depend::{long_depend, short_depend}, postorage::DATA_PL, merkle_tree::{generate_merkle_tree, generate_merkle_proof}};
@@ -124,7 +124,7 @@ pub fn seal(path: &str, block_cnt: usize, idx_l: &Vec<Vec<usize>>, idx_s: &Vec<V
                     for idx in (0..PL1).step_by(PL0) {
                         let input = block_xor[idx .. idx + PL0].to_vec();
                         let start = Instant::now();
-                        let mut vde_res = vde(&input, vde_key, SLOTH_ROUNDS, VDE_MODE);
+                        let mut vde_res = vde(&input, vde_key, SLOTH_ROUNDS, VDE_MODE, PL0);
                         vde_cost += start.elapsed().as_secs_f32();
                         res.append(&mut vde_res);
                     }
@@ -240,7 +240,7 @@ pub fn unseal(path: &str, block_cnt: usize, idx_l: &Vec<Vec<usize>>, idx_s: &Vec
                     for idx in (0..PL1).step_by(PL0) {
                         let input = cur_block[idx .. idx + PL0].to_vec();
                         let start = Instant::now();
-                        let mut vde_inv_res = vde_inv(&input, vde_key, SLOTH_ROUNDS, VDE_MODE);
+                        let mut vde_inv_res = vde_inv(&input, vde_key, SLOTH_ROUNDS, VDE_MODE, PL0);
                         vde_cost += start.elapsed().as_secs_f32();
                         res.append(&mut vde_inv_res);
                     }
@@ -320,7 +320,7 @@ pub fn response(path: &str, indices_to_prove: &Vec<usize>, idx_l: &Vec<Vec<usize
         res
     };
 
-    // 长程依赖二级数据块集合
+    // 长程依赖的二级数据块集合
     let depend_blocks = {
         let mut res = vec![];
         for &i in &blocks_idx {

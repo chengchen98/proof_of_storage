@@ -5,7 +5,7 @@ import math
 # 2048位的超了。。
 
 P_BITS = 1024
-SAMPLES = 1000
+SAMPLES = 10000
 time_total = 0
 
 def fastModPow(x, t, p): #快速幂的实现
