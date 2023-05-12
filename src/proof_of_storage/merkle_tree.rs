@@ -4,9 +4,9 @@ use rs_merkle::{MerkleTree, MerkleProof, Hasher, algorithms::Sha256};
 use super::common::read_file;
 
 pub const DATA_DIR: [&str; 4] = [r"src", "proof_of_storage", "data", "merkle_tree_data"];
-pub const RES_DIR: [&str; 4] = [r"src", "proof_of_storage", "data", "merkle_tree_result"];
+pub const MERKLE_TREE_DIR: [&str; 4] = [r"src", "proof_of_storage", "data", "merkle_tree_result"];
 
-pub fn generate_merkle_tree(path: &str, data_len: usize, leaf_len: usize) -> (Vec<[u8; 32]>, MerkleTree<Sha256>, [u8; 32]) {
+pub fn generate_merkle_tree_from_file(path: &str, data_len: usize, leaf_len: usize) -> (Vec<[u8; 32]>, MerkleTree<Sha256>, [u8; 32]) {
     let mut file = OpenOptions::new()
     .read(true)
     .open(path)
@@ -17,6 +17,13 @@ pub fn generate_merkle_tree(path: &str, data_len: usize, leaf_len: usize) -> (Ve
         let buf = read_file(&mut file, i + leaf_len, leaf_len);
         leaf_values.push(buf);
     }
+    let leaves: Vec< [u8; 32]> = leaf_values.iter().map(|x| Sha256::hash(x)).collect();
+    let merkle_tree = MerkleTree::<Sha256>::from_leaves(&leaves);
+    let merkle_root = merkle_tree.root().ok_or("can't get the merkle root").unwrap();
+    (leaves, merkle_tree, merkle_root)
+}
+
+pub fn generate_merkle_tree_from_data(leaf_values: &Vec<Vec<u8>>) -> (Vec<[u8; 32]>, MerkleTree<Sha256>, [u8; 32]) {
     let leaves: Vec< [u8; 32]> = leaf_values.iter().map(|x| Sha256::hash(x)).collect();
     let merkle_tree = MerkleTree::<Sha256>::from_leaves(&leaves);
     let merkle_root = merkle_tree.root().ok_or("can't get the merkle root").unwrap();
@@ -60,7 +67,7 @@ pub fn test(){
     let path: PathBuf = DATA_DIR.iter().collect();
     let path = path.to_str().unwrap();
 
-    let save_path: PathBuf = RES_DIR.iter().collect();
+    let save_path: PathBuf = MERKLE_TREE_DIR.iter().collect();
     let save_path = save_path.to_str().unwrap();
     let mut save_file = OpenOptions::new()
     .read(true)
@@ -81,7 +88,7 @@ pub fn test(){
     let mut t3 = 0.0;
     for _ in 0..SAMPLES {
         let start = Instant::now();
-        let (leaves, merkle_tree, merkle_root) = generate_merkle_tree(&path, DATA_L, LEAVE_L);
+        let (leaves, merkle_tree, merkle_root) = generate_merkle_tree_from_file(&path, DATA_L, LEAVE_L);
         t1 += start.elapsed().as_secs_f32();
 
         let indices_to_prove = create_challenges(COUNT, (0, leaves.len()));

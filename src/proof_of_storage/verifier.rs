@@ -5,7 +5,7 @@ use rug::Integer;
 use rs_merkle::{MerkleProof, algorithms::Sha256};
 use std::{fs::OpenOptions, io::Write, collections::BTreeSet};
 use crate::{proof_of_storage::postorage::{L2, L1}, mimc::mimc_hash::multi_mimc5_hash, vde::rug_vde::vde_inv};
-use super::{common::{read_file, to_block, vecu8_xor}, merkle_tree::verify_merkle_proof, postorage::{PL0, PL1, VDE_MODE, SEAL_ROUNDS, SLOTH_ROUNDS, L0}};
+use super::{common::{read_file, to_units, vecu8_xor}, merkle_tree::verify_merkle_proof, postorage::{PL0, PL1, VDE_MODE, SEAL_ROUNDS, SLOTH_ROUNDS, L0}};
 
 pub fn create_random_file(path: &str, data_len: usize) -> std::io::Result<()> {
     //! 随机创建长度为 DATA_L 字节的文件
@@ -96,7 +96,7 @@ pub fn verify(path: &str, blocks_idx: &Vec<usize>, idx_s: &Vec<Vec<Vec<usize>>>,
         .open(path)
         .unwrap();
         let origin_block = read_file(&mut file, idx2 * L2, L2);
-        let origin_block = to_block(&origin_block, L1);
+        let origin_block = to_units(&origin_block, L1);
         for j in 0.. origin_block.len() {
             let mut k_ori = 0;
             let mut k_cur = 0;

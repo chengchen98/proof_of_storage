@@ -1,6 +1,6 @@
-use md5::{Md5, Digest};
-use rug::{Integer, integer::Order};
 use blake3;
+
+use std::collections::HashSet;
 
 pub fn long_mode_1(index: usize, count: usize) -> Vec<usize> {
     //! rule: -1-2\*0, -1-2\*1, -1-2\*2, -1-2\*3...
@@ -53,10 +53,6 @@ pub fn long_mode_random(data: &Vec<u8>, index: usize, count: usize) -> Vec<usize
         return long_index;
     }
 
-    // if index == 2 {
-    //     println!("data: {:?}", data);
-    // }
-
     let mut hasher = blake3::Hasher::new();
     hasher.update(data);
     let mut blake3_res = hasher.finalize();
@@ -76,7 +72,10 @@ pub fn long_mode_random(data: &Vec<u8>, index: usize, count: usize) -> Vec<usize
         depend_idx = data_idx % index as u128;
         long_index.push(depend_idx as usize);
     }
-    long_index
+    let mut res = long_index.into_iter().collect::<HashSet<_>>().into_iter().collect::<Vec<usize>>();
+    res.sort();
+    res
+    // long_index
 }
 
 pub fn long_depend(index: usize, count: usize, mode: usize) -> Vec<usize> {
@@ -205,7 +204,9 @@ pub fn short_depend_random(num: usize, data: &Vec<u8>, index: usize, count: usiz
             short_index.push(depend_idx as usize);
         }
     }
-    short_index
+    let mut res = short_index.into_iter().collect::<HashSet<_>>().into_iter().collect::<Vec<usize>>();
+    res.sort();
+    res
 }
 
 

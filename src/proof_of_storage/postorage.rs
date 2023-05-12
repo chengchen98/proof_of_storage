@@ -10,7 +10,7 @@ use rug::Integer;
 
 use super::prover::{create_depend, copy_and_pad, seal, unseal, copy_and_compress, response};
 use super::verifier::{create_random_file, create_challenges};
-use super::merkle_tree::{generate_merkle_tree, generate_merkle_proof, verify_merkle_proof};
+use super::merkle_tree::{generate_merkle_tree_from_file, generate_merkle_proof, verify_merkle_proof};
 use crate::mimc::mimc_hash::MIMC5_HASH_ROUNDS;
 use crate::proof_of_storage::verifier::verify;
 use crate::vde::sloth::{P_1024, P_2048};
@@ -118,7 +118,7 @@ pub fn challenge_and_response(origin_path: &str, sealed_path: &str, unsealed_pat
     print!("Generate origin merkle tree...");
     io::stdout().flush().unwrap();
     let start = Instant::now();
-    let (_, _, origin_merkle_root) = generate_merkle_tree(&origin_path, DATA_L, L1);
+    let (_, _, origin_merkle_root) = generate_merkle_tree_from_file(&origin_path, DATA_L, L1);
     let cost1 = start.elapsed();
     print!("Ok...{:?}\n", cost1);
 
@@ -126,7 +126,7 @@ pub fn challenge_and_response(origin_path: &str, sealed_path: &str, unsealed_pat
     print!("Generate sealed merkle tree...");
     io::stdout().flush().unwrap();
     let start = Instant::now();
-    let (sealed_leaves, sealed_merkle_tree, sealed_merkle_root) = generate_merkle_tree(&sealed_path, DATA_PL, PL1);
+    let (sealed_leaves, sealed_merkle_tree, sealed_merkle_root) = generate_merkle_tree_from_file(&sealed_path, DATA_PL, PL1);
     let cost2 = start.elapsed();
     print!("Ok...{:?}\n", cost2);
 
@@ -158,7 +158,7 @@ pub fn challenge_and_response(origin_path: &str, sealed_path: &str, unsealed_pat
     print!("Generate unsealed merkle tree...");
     io::stdout().flush().unwrap();
     let start = Instant::now();
-    let (unsealed_leaves, unsealed_merkle_tree, _) = generate_merkle_tree(&unsealed_path, DATA_L, L1);
+    let (unsealed_leaves, unsealed_merkle_tree, _) = generate_merkle_tree_from_file(&unsealed_path, DATA_L, L1);
     let cost6 = start.elapsed();
     print!("Ok...{:?}\n", cost6);
 

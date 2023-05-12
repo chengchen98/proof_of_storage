@@ -9,7 +9,7 @@ use ark_ff::{BigInteger256, BigInteger, PrimeField};
 use crate::vde::rug_vde::{vde, vde_inv};
 use crate::mimc::mimc_hash::multi_mimc5_hash;
 
-use super::{common::{read_file, to_block, com_block, vecu8_xor}, depend::{long_depend, short_depend}, postorage::DATA_PL, merkle_tree::{generate_merkle_tree, generate_merkle_proof}};
+use super::{common::{read_file, to_units, com_units, vecu8_xor}, depend::{long_depend, short_depend}, postorage::DATA_PL, merkle_tree::{generate_merkle_tree_from_file, generate_merkle_proof}};
 use super::postorage::{DATA_L, L0, PL2, PL1, PL0, SEAL_ROUNDS, SLOTH_ROUNDS, VDE_MODE};
 
 pub fn create_depend(l2_cnt: usize, l1_cnt: usize, idx_cnt_l: usize, idx_cnt_s: usize, mode_l: usize, mode_s: usize) -> (Vec<Vec<usize>>, Vec<Vec<Vec<usize>>>) {
@@ -70,7 +70,7 @@ pub fn seal(path: &str, block_cnt: usize, idx_l: &Vec<Vec<usize>>, idx_s: &Vec<V
                 let start = Instant::now();
                 let buf = read_file(&mut file, idx2 * PL2, PL2);
                 file_cost += start.elapsed().as_secs_f32();
-                to_block(&buf, PL1)
+                to_units(&buf, PL1)
             };
 
             let depend_blocks = {
@@ -79,7 +79,7 @@ pub fn seal(path: &str, block_cnt: usize, idx_l: &Vec<Vec<usize>>, idx_s: &Vec<V
                     let start = Instant::now();
                     let buf = read_file(&mut file, i * PL2, PL2);
                     file_cost += start.elapsed().as_secs_f32();
-                    let ans = to_block(&buf, PL1);
+                    let ans = to_units(&buf, PL1);
                     res.push(ans);
                 }
                 res
@@ -134,7 +134,7 @@ pub fn seal(path: &str, block_cnt: usize, idx_l: &Vec<Vec<usize>>, idx_s: &Vec<V
                 block[idx1] = new_block;
             }
 
-            let block = com_block(&block);
+            let block = com_units(&block);
             let start = Instant::now();
             file.seek(SeekFrom::Start((idx2 * PL2).try_into().unwrap())).unwrap();
             file.write_all(&block).unwrap();
@@ -185,7 +185,7 @@ pub fn unseal(path: &str, block_cnt: usize, idx_l: &Vec<Vec<usize>>, idx_s: &Vec
                 let start = Instant::now();
                 let buf = read_file(&mut file, idx2 * PL2, PL2);
                 file_cost += start.elapsed().as_secs_f32();
-                to_block(&buf, PL1)
+                to_units(&buf, PL1)
             };
 
             let depend_blocks = {
@@ -194,7 +194,7 @@ pub fn unseal(path: &str, block_cnt: usize, idx_l: &Vec<Vec<usize>>, idx_s: &Vec
                     let start = Instant::now();
                     let buf = read_file(&mut file, i * PL2, PL2);
                     file_cost += start.elapsed().as_secs_f32();
-                    let ans = to_block(&buf, PL1);
+                    let ans = to_units(&buf, PL1);
                     res.push(ans);
                 }
                 res
@@ -251,7 +251,7 @@ pub fn unseal(path: &str, block_cnt: usize, idx_l: &Vec<Vec<usize>>, idx_s: &Vec
                 block[idx1] = new_block;
             }
 
-            let block = com_block(&block);
+            let block = com_units(&block);
             let start = Instant::now();
             file.seek(SeekFrom::Start((idx2 * PL2).try_into().unwrap())).unwrap();
             file.write_all(&block).unwrap();
@@ -291,7 +291,7 @@ pub fn unseal(path: &str, block_cnt: usize, idx_l: &Vec<Vec<usize>>, idx_s: &Vec
 
 pub fn response(path: &str, indices_to_prove: &Vec<usize>, idx_l: &Vec<Vec<usize>>) 
 -> (Vec<usize>, Vec<Vec<Vec<u8>>>, Vec<Vec<Vec<Vec<u8>>>>, [u8; 32], MerkleProof<Sha256>, Vec<[u8; 32]>) {
-    let (sealed_leaves, sealed_merkle_tree, sealed_merkle_root) = generate_merkle_tree(&path, DATA_PL, PL1);
+    let (sealed_leaves, sealed_merkle_tree, sealed_merkle_root) = generate_merkle_tree_from_file(&path, DATA_PL, PL1);
     let sealed_proof = generate_merkle_proof(&indices_to_prove, sealed_merkle_tree);
 
     let mut file = OpenOptions::new()
@@ -314,7 +314,7 @@ pub fn response(path: &str, indices_to_prove: &Vec<usize>, idx_l: &Vec<Vec<usize
         let mut res = vec![];
         for &i in &blocks_idx {
             let buf = read_file(&mut file, i * PL2, PL2);
-            let ans = to_block(&buf, PL1);
+            let ans = to_units(&buf, PL1);
             res.push(ans);
         }
         res
@@ -327,7 +327,7 @@ pub fn response(path: &str, indices_to_prove: &Vec<usize>, idx_l: &Vec<Vec<usize
             let mut tmp = vec![];
             for &j in &idx_l[i] {
                 let buf = read_file(&mut file, j * PL2, PL2);
-                let ans = to_block(&buf, PL1);
+                let ans = to_units(&buf, PL1);
                 tmp.push(ans);
             }
             res.push(tmp);

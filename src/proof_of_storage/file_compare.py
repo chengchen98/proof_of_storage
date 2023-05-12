@@ -21,4 +21,4 @@ if is_right:
     print("That's good! :)")
 else:
     print("Oops, something was wrong! :(")
-    print(f"Total wrong num is: {wrong_count}")
+    print(f"Total wrong num is {wrong_count} bytes")

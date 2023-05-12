@@ -71,7 +71,6 @@ fn test() {
     }
 }
 
-
 pub fn read_file(file: &mut File, begin_idx: usize, len: usize) -> Vec<u8> {
     //! 从 file 的 begin_idx 字节开始，读取 len 字节
     let mut buf = vec![0; len];
@@ -80,7 +79,7 @@ pub fn read_file(file: &mut File, begin_idx: usize, len: usize) -> Vec<u8> {
     buf
 }
 
-pub fn to_block(data: &Vec<u8>, len: usize) -> Vec<Vec<u8>> {
+pub fn to_units(data: &Vec<u8>, len: usize) -> Vec<Vec<u8>> {
     //! 将一个二级数据块按固定长度 len 分成多个一级数据块
     let mut res = vec![];
     for i in (0..data.len()).step_by(len) {
@@ -89,13 +88,10 @@ pub fn to_block(data: &Vec<u8>, len: usize) -> Vec<Vec<u8>> {
     res
 }
 
-pub fn com_block(data: &Vec<Vec<u8>>) -> Vec<u8> {
+pub fn com_units(data: &Vec<Vec<u8>>) -> Vec<u8> {
     //! 将多个一级数据块合并成一个二级数据块
     let mut res = vec![];
     for i in 0..data.len() {
-        // for j in 0..data[i].len() {
-        //     res.push(data[i][j]);
-        // }
         res.append(&mut data[i].clone());
     }
     res
