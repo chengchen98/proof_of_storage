@@ -10,10 +10,10 @@ use serde::{Serialize, Deserialize};
 use bincode::{serialize_into, deserialize_from};
 
 use super::merkle_tree::{generate_merkle_proof, generate_merkle_tree_from_file, verify_merkle_proof};
-use super::prover_modify::{copy_and_pad, seal, unseal, copy_and_compress};
-use super::verifier_modify::{create_random_file, unseal_single_prepare, unseal_single_and_verify};
+use super::prover::{copy_and_pad, seal, unseal, copy_and_compress};
+use super::verifier::{create_random_file, unseal_single_prepare, unseal_single_and_verify};
 
-use crate::proof_of_storage::verifier_modify::create_challenges;
+use crate::proof_of_storage::verifier::create_challenges;
 use crate::vde::rug_sloth::{P_512, P_1024, P_2048};
 
 pub const ORIGIN_DATA_DIR: [&str; 4] = [r"src", "proof_of_storage", "data", "origin_data"];

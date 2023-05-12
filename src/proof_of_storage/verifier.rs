@@ -8,9 +8,9 @@ use crate::vde::rug_vde::vde_inv;
 
 use super::common::{read_file, to_units, modsub, blake3_hash};
 use super::depend::{short_depend_random, long_mode_random};
-use super::prover_modify::{create_short_depend, create_long_depend};
+use super::prover::{create_short_depend, create_long_depend};
 
-use super::postorage_modify::{DATA_L, UNIT_PL, BLOCK_PL, UNIT_L, BLOCK_L};
+use super::postorage::{DATA_L, UNIT_PL, BLOCK_PL, UNIT_L, BLOCK_L};
 
 pub fn create_random_file(path: &str, data_len: usize) -> std::io::Result<()> {
     //! 随机创建长度为 DATA_L 字节的文件

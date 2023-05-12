@@ -62,7 +62,7 @@ pub fn verify_merkle_proof(proof: MerkleProof<Sha256>, merkle_root: [u8; 32], in
 #[test]
 pub fn test(){
     use std::{fs::OpenOptions, path::PathBuf, time::Instant, io::Write};
-    use super::verifier_modify::{create_random_file, create_challenges};
+    use super::verifier::{create_random_file, create_challenges};
 
     let path: PathBuf = DATA_DIR.iter().collect();
     let path = path.to_str().unwrap();

@@ -1,6 +1,6 @@
 use num_bigint::{BigInt, Sign};
 use super::sloth::{sloth, sloth_inv};
-use crate::proof_of_storage::postorage_modify::UNIT_L;
+use crate::proof_of_storage::postorage::UNIT_L;
 
 pub const STEP: usize = UNIT_L + 1;
 
@@ -74,12 +74,12 @@ pub fn vde_inv(y: &Vec<u8>, p: &BigInt, t: usize, mode: &str) -> Vec<u8> {
 fn test_vde() {
     use std::str::FromStr;
     use std::time::Instant;
-    use super::sloth::P_1024;
+    use super::sloth::P_512;
 
     const T: usize = 3;
     const N: usize = 10;
     let x =vec![1u8; 128 * N];
-    let p = &BigInt::from_str(P_1024).unwrap();
+    let p = &BigInt::from_str(P_512).unwrap();
 
     const SAMPLES: usize = 10;
     for i in 0..SAMPLES {

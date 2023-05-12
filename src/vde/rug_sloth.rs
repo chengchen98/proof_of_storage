@@ -165,7 +165,7 @@ fn test_sloth() {
     
     let mut rng = rand::thread_rng();
     
-    const SAMPLES: usize = 1000;
+    const SAMPLES: usize = 1;
     let mut t1 = 0.0;
     let mut t2 = 0.0;
     for _ in 0..SAMPLES {

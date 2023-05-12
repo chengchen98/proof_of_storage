@@ -5,7 +5,7 @@ use crate::{vde::rug_vde::{vde, vde_inv}};
 
 use super::depend::{long_depend, short_depend, short_depend_random, long_mode_random};
 use super::common::{read_file, to_units, com_units, modadd, modsub, blake3_hash};
-use super::postorage_modify::{DATA_L, UNIT_L, UNIT_PL, BLOCK_L, BLOCK_PL};
+use super::postorage::{DATA_L, UNIT_L, UNIT_PL, BLOCK_L, BLOCK_PL};
 
 pub fn create_long_depend(num: usize, count: usize, mode: usize) -> Vec<Vec<usize>> {
     let mut indices = vec![];
