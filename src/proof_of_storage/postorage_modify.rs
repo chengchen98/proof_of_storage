@@ -1,5 +1,5 @@
-use std::fs::{File, OpenOptions};
-use std::io::{Write, BufReader};
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Instant;
@@ -41,8 +41,8 @@ pub const VDE_MODE: &str = "sloth";
 // mode > 0: 确定性依赖关系
 pub const MODE_L: usize = 0;
 pub const MODE_S: usize = 0;
-pub const CNT_L: usize = 3;
-pub const CNT_S: usize = 50;
+pub const CNT_L: usize = 50;
+pub const CNT_S: usize = 10;
 
 pub const LEAVES_TO_PROVE_COUNT: usize = 3;
 
@@ -50,11 +50,11 @@ pub const LEAVES_TO_PROVE_COUNT: usize = 3;
 struct SaveData {
     vde_key: String,
     iv: Vec<u8>,
-    blocks_id: Vec<Vec<Vec<u8>>>,
+    // blocks_id: Vec<Vec<u8>>,
 }
 
-pub fn save_data(path: &str, vde_key: &Integer, iv: &Vec<u8>, blocks_id: &Vec<Vec<Vec<u8>>>) {
-    let target = SaveData {vde_key: vde_key.to_string(), iv: iv.to_vec(), blocks_id: blocks_id.to_vec()};
+pub fn save_data(path: &str, vde_key: &Integer, iv: &Vec<u8>) {
+    let target = SaveData {vde_key: vde_key.to_string(), iv: iv.to_vec()};
 
     let mut file = OpenOptions::new()
     .read(true)
@@ -66,15 +66,15 @@ pub fn save_data(path: &str, vde_key: &Integer, iv: &Vec<u8>, blocks_id: &Vec<Ve
     serialize_into(&mut file, &target).unwrap();
 }
 
-pub fn load_data(path: &str) -> (Integer, Vec<u8>, Vec<Vec<Vec<u8>>>) {
+pub fn load_data(path: &str) -> (Integer, Vec<u8>) {
     let file = OpenOptions::new()
     .read(true)
     .open(path)
     .unwrap();
 
     let target: SaveData = deserialize_from(&file).unwrap();
-    let (vde_key, iv, blocks_id) = (Integer::from_str(&target.vde_key).unwrap(), target.iv, target.blocks_id);
-    (vde_key, iv, blocks_id)
+    let (vde_key, iv) = (Integer::from_str(&target.vde_key).unwrap(), target.iv);
+    (vde_key, iv)
 }
 
 pub fn prepare_params() -> (Integer, Vec<u8>) {
@@ -118,12 +118,12 @@ pub fn postorage(origin_path: &str, sealed_path: &str, unsealed_path: &str, save
     let (blocks_id, seal_vde_cost, seal_file_cost, seal_depend_cost, seal_hash_cost, seal_block_cost, seal_modadd_cost) = seal(sealed_path, SEAL_ROUNDS, MODE_L, CNT_L, MODE_S, CNT_S, &vde_key, &iv, VDE_ROUNDS, VDE_MODE);
     let cost1 = start.elapsed();
 
-    save_data(save_data_path, &vde_key, &iv, &blocks_id);
+    save_data(save_data_path, &vde_key, &iv);
 
     if should_unseal == true {
         // Unseal
         let start = Instant::now();
-        let (unseal_vde_cost, unseal_file_cost, unseal_depend_cost, unseal_hash_cost, unseal_block_cost, unseal_modsub_cost) = unseal(sealed_path, SEAL_ROUNDS, MODE_L, CNT_L, MODE_S, CNT_S, &vde_key, &iv, &blocks_id, VDE_ROUNDS, VDE_MODE);
+        let (unseal_vde_cost, unseal_file_cost, unseal_depend_cost, unseal_hash_cost, unseal_block_cost, unseal_modsub_cost) = unseal(sealed_path, SEAL_ROUNDS, MODE_L, CNT_L, MODE_S, CNT_S, &vde_key, &iv, VDE_ROUNDS, VDE_MODE);
         let cost2 = start.elapsed();
 
         copy_and_compress(sealed_path, unsealed_path);
@@ -149,11 +149,11 @@ pub fn postorage(origin_path: &str, sealed_path: &str, unsealed_path: &str, save
 
 pub fn challenge_unseal_single(target_path: &str, origin_path: &str, sealed_path: &str) {
     // unseal single
-    let (vde_key, iv, blocks_id) = load_data(&target_path);
+    let (vde_key, iv) = load_data(&target_path);
 
-    let range = (0 * BLOCK_PL, 1 * BLOCK_PL);
-    let (blocks_idx, blocks) = unseal_single_prepare(sealed_path, range.0, range.1, MODE_L, CNT_L, MODE_S, CNT_S);
-    unseal_single_and_verify(sealed_path, origin_path, SEAL_ROUNDS, &blocks_idx, &blocks, MODE_L, CNT_L, MODE_S, CNT_S, &vde_key, VDE_ROUNDS, VDE_MODE, &iv, &blocks_id);
+    let range = (2 * BLOCK_PL, 8 * BLOCK_PL);
+    let (blocks_idx, blocks) = unseal_single_prepare(sealed_path, range.0, range.1);
+    unseal_single_and_verify(sealed_path, origin_path, SEAL_ROUNDS, &blocks_idx, &blocks, MODE_L, CNT_L, MODE_S, CNT_S, &vde_key, VDE_ROUNDS, VDE_MODE, &iv);
 }
 
 pub fn merkle_tree_proof(origin_path: &str, unsealed_path: &str) {
@@ -187,7 +187,7 @@ pub fn test_postorage(should_save_run_data: bool, should_seal: bool, should_unse
     let run_data_path: PathBuf = RUN_DATA_DIR.iter().collect();
     let run_data_path = run_data_path.to_str().unwrap();
 
-    const SAMPLES: usize = 4;
+    const SAMPLES: usize = 5;
     for _ in 0..SAMPLES {
         if should_seal == true {
             create_random_file(origin_path, DATA_L).unwrap();

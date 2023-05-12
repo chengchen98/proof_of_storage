@@ -49,7 +49,7 @@ pub fn copy_and_pad(origin_path: &str, new_path: &str) {
 }
 
 pub fn seal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_s: usize, cnt_s: usize, vde_key: &Integer, iv: &Vec<u8>, vde_rounds: usize, vde_mode: &str) 
--> (Vec<Vec<Vec<u8>>>, f32, f32, f32, f32, f32, f32) {
+-> (Vec<Vec<u8>>, f32, f32, f32, f32, f32, f32) {
     let mut file = OpenOptions::new()
     .read(true)
     .write(true)
@@ -65,6 +65,7 @@ pub fn seal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_s:
 
     // block_cnt: 二级数据块个数
     let block_cnt = DATA_L / BLOCK_L;
+    let mut blocks_id = vec![vec![]; block_cnt];
 
     let start = Instant::now();
     let idxs_l = {
@@ -85,81 +86,78 @@ pub fn seal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_s:
     };
     depend_cost += start.elapsed().as_secs_f32();
 
-    let mut blocks_id = vec![vec![vec![]; block_cnt]; seal_rounds];
-
-    // 封装seal_rounds轮
-    for round in 0..seal_rounds {
         // 逐个封装二级数据块
-        for idx2 in 0..block_cnt {
-            let mut cur_block = {
+    for idx2 in 0..block_cnt {
+        let mut cur_block = {
+            let start = Instant::now();
+            let buf = read_file(&mut file, idx2 * BLOCK_PL, BLOCK_PL);
+            file_cost += start.elapsed().as_secs_f32();
+
+            let start = Instant::now();
+            let block = to_units(&buf, UNIT_PL);
+            block_cost += start.elapsed().as_secs_f32();
+            block
+        };
+
+        // 当前二级数据块长程依赖的二级数据块集合
+        let depend_blocks = {
+            let mut res = vec![];
+            if mode_l == 0 {
+                // let before_unit = {
+                //     if idx2 != 0 {
+                //         let start = Instant::now();
+                //         let buf = read_file(&mut file, idx2 * BLOCK_PL - UNIT_PL, UNIT_PL);
+                //         file_cost += start.elapsed().as_secs_f32();
+                //         buf
+                //     }
+                //     else {
+                //         vec![]
+                //     }
+                // };
+                // let start = Instant::now();
+                // let cur_idxs_l = long_mode_random(&before_unit, idx2, cnt_l);
+                // depend_cost += start.elapsed().as_secs_f32();
                 let start = Instant::now();
-                let buf = read_file(&mut file, idx2 * BLOCK_PL, BLOCK_PL);
-                file_cost += start.elapsed().as_secs_f32();
-
-                let start = Instant::now();
-                let block = to_units(&buf, UNIT_PL);
-                block_cost += start.elapsed().as_secs_f32();
-                block
-            };
-
-            // 当前二级数据块长程依赖的二级数据块集合
-            let depend_blocks = {
-                let mut res = vec![];
-                if mode_l == 0 {
-                    // let before_unit = {
-                    //     if idx2 != 0 {
-                    //         let start = Instant::now();
-                    //         let buf = read_file(&mut file, idx2 * BLOCK_PL - UNIT_PL, UNIT_PL);
-                    //         file_cost += start.elapsed().as_secs_f32();
-                    //         buf
-                    //     }
-                    //     else {
-                    //         vec![]
-                    //     }
-                    // };
-                    // let start = Instant::now();
-                    // let cur_idxs_l = long_mode_random(&before_unit, idx2, cnt_l);
-                    // depend_cost += start.elapsed().as_secs_f32();
-                    let cur_idxs_l = {
-                        if idx2 != 0 {
-                            let start = Instant::now();
-                            let res = long_mode_random(&blocks_id[round][idx2 - 1], idx2, cnt_l);
-                            depend_cost += start.elapsed().as_secs_f32();
-                            res
-                        }
-                        else {
-                            vec![]
-                        }
-                    };
-
-                    for &i in &cur_idxs_l {
-                        let start = Instant::now();
-                        let buf = read_file(&mut file, i * BLOCK_PL, BLOCK_PL);
-                        file_cost += start.elapsed().as_secs_f32();
-    
-                        let start = Instant::now();
-                        let ans = to_units(&buf, UNIT_PL);
-                        block_cost += start.elapsed().as_secs_f32();
-
-                        res.push(ans);
+                let cur_idxs_l = {
+                    if idx2 == 0 {
+                        vec![]
                     }
-                }
-                else {
-                    for &i in &idxs_l[idx2] {
-                        let start = Instant::now();
-                        let buf = read_file(&mut file, i * BLOCK_PL, BLOCK_PL);
-                        file_cost += start.elapsed().as_secs_f32();
-    
-                        let start = Instant::now();
-                        let ans = to_units(&buf, UNIT_PL);
-                        block_cost += start.elapsed().as_secs_f32();
-
-                        res.push(ans);
+                    else {
+                        long_mode_random(&blocks_id[idx2 - 1], idx2, cnt_l)
                     }
-                }
-                res
-            };
+                };
+                depend_cost += start.elapsed().as_secs_f32();
 
+                for &i in &cur_idxs_l {
+                    let start = Instant::now();
+                    let buf = read_file(&mut file, i * BLOCK_PL, BLOCK_PL);
+                    file_cost += start.elapsed().as_secs_f32();
+
+                    let start = Instant::now();
+                    let ans = to_units(&buf, UNIT_PL);
+                    block_cost += start.elapsed().as_secs_f32();
+
+                    res.push(ans);
+                }
+            }
+            else {
+                for &i in &idxs_l[idx2] {
+                    let start = Instant::now();
+                    let buf = read_file(&mut file, i * BLOCK_PL, BLOCK_PL);
+                    file_cost += start.elapsed().as_secs_f32();
+
+                    let start = Instant::now();
+                    let ans = to_units(&buf, UNIT_PL);
+                    block_cost += start.elapsed().as_secs_f32();
+
+                    res.push(ans);
+                }
+            }
+            res
+        };
+
+        // 封装seal_rounds轮
+        for _ in 0..seal_rounds {
             // 对当前二级数据块中的一级数据块逐个封装
             for idx1 in 0..cur_block.len() {
                 let mut depend_data = {
@@ -197,7 +195,7 @@ pub fn seal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_s:
                         depend_data.append(&mut iv.clone());
                     }
                     else {
-                        depend_data.append(&mut blocks_id[round][idx2 - 1].clone());
+                        depend_data.append(&mut blocks_id[idx2 - 1].clone());
                     }
                 }
 
@@ -222,20 +220,20 @@ pub fn seal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_s:
                 // 更新unit的值
                 cur_block[idx1] = new_unit;
             }
-
-            let start = Instant::now();
-            let cur_block = com_units(&cur_block);
-            block_cost += start.elapsed().as_secs_f32();
-
-            let start = Instant::now();
-            blocks_id[round][idx2] = blake3_hash(&cur_block);
-            hash_cost += start.elapsed().as_secs_f32();
-
-            let start = Instant::now();
-            file.seek(SeekFrom::Start((idx2 * BLOCK_PL).try_into().unwrap())).unwrap();
-            file.write_all(&cur_block).unwrap();
-            file_cost += start.elapsed().as_secs_f32();
         }
+
+        let start = Instant::now();
+        let cur_block = com_units(&cur_block);
+        block_cost += start.elapsed().as_secs_f32();
+
+        let start = Instant::now();
+        blocks_id[idx2] = blake3_hash(&cur_block);
+        hash_cost += start.elapsed().as_secs_f32();
+
+        let start = Instant::now();
+        file.seek(SeekFrom::Start((idx2 * BLOCK_PL).try_into().unwrap())).unwrap();
+        file.write_all(&cur_block).unwrap();
+        file_cost += start.elapsed().as_secs_f32();
     }
 
     (blocks_id, vde_cost, file_cost, depend_cost, hash_cost, block_cost, modadd_cost)
@@ -262,7 +260,7 @@ pub fn copy_and_compress(origin_path: &str, new_path: &str) {
     }
 }
 
-pub fn unseal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_s: usize, cnt_s: usize, vde_key: &Integer, iv: &Vec<u8>, blocks_id: &Vec<Vec<Vec<u8>>>, vde_rounds: usize, vde_mode: &str) 
+pub fn unseal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_s: usize, cnt_s: usize, vde_key: &Integer, iv: &Vec<u8>, vde_rounds: usize, vde_mode: &str) 
 -> (f32, f32, f32, f32, f32, f32) {
     let mut file = OpenOptions::new()
     .read(true)
@@ -278,7 +276,6 @@ pub fn unseal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_
     let mut modsub_cost = 0.0;
 
     let block_cnt = DATA_L / BLOCK_L;
-    let mut blocks_id = blocks_id.clone();
 
     let start = Instant::now();
     let idxs_l = {
@@ -299,80 +296,93 @@ pub fn unseal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_
     };
     depend_cost += start.elapsed().as_secs_f32();
 
-    for r in 0..seal_rounds {
-        let round = seal_rounds - 1 - r;
+    for i in 0..block_cnt {
+        let idx2 = block_cnt - 1 - i;
+        
+        let before_block_id = {
+            if idx2 != 0 {
+                let before_block = {
+                    let start = Instant::now();
+                    let block = read_file(&mut file, (idx2 - 1) * BLOCK_PL, BLOCK_PL);
+                    file_cost += start.elapsed().as_secs_f32();
+                    block
+                };
+                blake3_hash(&before_block)
+            }
+            else {
+                vec![]
+            }
+        };
 
-        for i in 0..block_cnt {
-            let idx2 = block_cnt - 1 - i;
+        let mut cur_block = {
+            let start = Instant::now();
+            let buf = read_file(&mut file, idx2 * BLOCK_PL, BLOCK_PL);
+            file_cost += start.elapsed().as_secs_f32();
+            
+            let start = Instant::now();
+            let block = to_units(&buf, UNIT_PL);
+            block_cost += start.elapsed().as_secs_f32();
+            block
+        };
 
-            let mut cur_block = {
-                let start = Instant::now();
-                let buf = read_file(&mut file, idx2 * BLOCK_PL, BLOCK_PL);
-                file_cost += start.elapsed().as_secs_f32();
-                
-                let start = Instant::now();
-                let block = to_units(&buf, UNIT_PL);
-                block_cost += start.elapsed().as_secs_f32();
-                block
-            };
-
-            let depend_blocks = {
-                let mut res = vec![];
-                if mode_l == 0 {
-                    // let before_unit = {
-                    //     if idx2 != 0 {
-                    //         let start = Instant::now();
-                    //         let buf = read_file(&mut file, idx2 * BLOCK_PL - UNIT_PL, UNIT_PL);
-                    //         file_cost += start.elapsed().as_secs_f32();
-                    //         buf
-                    //     }
-                    //     else {
-                    //         vec![]
-                    //     }
-                    // };
-                    // let start = Instant::now();
-                    // let cur_idxs_l = long_mode_random(&before_unit, idx2, cnt_l);
-                    // depend_cost += start.elapsed().as_secs_f32();
-                    let cur_idxs_l = {
-                        if idx2 != 0 {
-                            let start = Instant::now();
-                            let res = long_mode_random(&blocks_id[round][idx2 - 1], idx2, cnt_l);
-                            depend_cost += start.elapsed().as_secs_f32();
-                            res
-                        }
-                        else {
-                            vec![]
-                        }
-                    };
-
-                    for i in 0..cur_idxs_l.len() {
-                        let start = Instant::now();
-                        let buf = read_file(&mut file, cur_idxs_l[i] * BLOCK_PL, BLOCK_PL);
-                        file_cost += start.elapsed().as_secs_f32();
-    
-                        let start = Instant::now();
-                        let ans = to_units(&buf, UNIT_PL);
-                        block_cost += start.elapsed().as_secs_f32();
-
-                        res.push(ans);
+        let depend_blocks = {
+            let mut res = vec![];
+            if mode_l == 0 {
+                // let before_unit = {
+                //     if idx2 != 0 {
+                //         let start = Instant::now();
+                //         let buf = read_file(&mut file, idx2 * BLOCK_PL - UNIT_PL, UNIT_PL);
+                //         file_cost += start.elapsed().as_secs_f32();
+                //         buf
+                //     }
+                //     else {
+                //         vec![]
+                //     }
+                // };
+                // let start = Instant::now();
+                // let cur_idxs_l = long_mode_random(&before_unit, idx2, cnt_l);
+                // depend_cost += start.elapsed().as_secs_f32();
+                let cur_idxs_l = {
+                    if idx2 == 0 {
+                        vec![]
                     }
-                }
-                else {
-                    for i in 0..idxs_l[idx2].len() {
+                    else {
                         let start = Instant::now();
-                        let buf = read_file(&mut file, i * BLOCK_PL, BLOCK_PL);
-                        file_cost += start.elapsed().as_secs_f32();
-    
-
-                        let start = Instant::now();
-                        let ans = to_units(&buf, UNIT_PL);
-                        block_cost += start.elapsed().as_secs_f32();
-
-                        res.push(ans);
+                        let res = long_mode_random(&before_block_id, idx2, cnt_l);
+                        depend_cost += start.elapsed().as_secs_f32();
+                        res
                     }
+                };
+
+                for i in 0..cur_idxs_l.len() {
+                    let start = Instant::now();
+                    let buf = read_file(&mut file, cur_idxs_l[i] * BLOCK_PL, BLOCK_PL);
+                    file_cost += start.elapsed().as_secs_f32();
+
+                    let start = Instant::now();
+                    let ans = to_units(&buf, UNIT_PL);
+                    block_cost += start.elapsed().as_secs_f32();
+
+                    res.push(ans);
                 }
-                res
-            };
+            }
+            else {
+                for i in 0..idxs_l[idx2].len() {
+                    let start = Instant::now();
+                    let buf = read_file(&mut file, i * BLOCK_PL, BLOCK_PL);
+                    file_cost += start.elapsed().as_secs_f32();
+
+                    let start = Instant::now();
+                    let ans = to_units(&buf, UNIT_PL);
+                    block_cost += start.elapsed().as_secs_f32();
+
+                    res.push(ans);
+                }
+            }
+            res
+        };
+
+        for _ in 0..seal_rounds {
 
             for j in 0..cur_block.len() {
                 let idx1 = cur_block.len() - 1 - j;
@@ -411,7 +421,7 @@ pub fn unseal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_
                         depend_data.append(&mut iv.clone());
                     }
                     else {
-                        depend_data.append(&mut blocks_id[round][idx2 - 1].clone());
+                        depend_data.append(&mut before_block_id.clone());
                     }
                 }
 
@@ -431,20 +441,20 @@ pub fn unseal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_
 
                 cur_block[idx1] = new_unit;
             }
-
-            let start = Instant::now();
-            let cur_block = com_units(&cur_block);
-            block_cost += start.elapsed().as_secs_f32();
-
-            let start = Instant::now();
-            blocks_id[round][idx2] = blake3_hash(&cur_block);
-            hash_cost += start.elapsed().as_secs_f32();
-
-            let start = Instant::now();
-            file.seek(SeekFrom::Start((idx2 * BLOCK_PL).try_into().unwrap())).unwrap();
-            file.write_all(&cur_block).unwrap();
-            file_cost += start.elapsed().as_secs_f32();
         }
+
+        let start = Instant::now();
+        let cur_block = com_units(&cur_block);
+        block_cost += start.elapsed().as_secs_f32();
+
+        // let start = Instant::now();
+        // blocks_id[idx2] = blake3_hash(&cur_block);
+        // hash_cost += start.elapsed().as_secs_f32();
+
+        let start = Instant::now();
+        file.seek(SeekFrom::Start((idx2 * BLOCK_PL).try_into().unwrap())).unwrap();
+        file.write_all(&cur_block).unwrap();
+        file_cost += start.elapsed().as_secs_f32();
     }
 
     (vde_cost, file_cost, depend_cost, hash_cost, block_cost, modsub_cost)

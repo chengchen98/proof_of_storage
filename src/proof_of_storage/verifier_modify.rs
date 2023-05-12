@@ -6,8 +6,8 @@ use rug::Integer;
 
 use crate::vde::rug_vde::vde_inv;
 
-use super::common::{md5_hash, read_file, to_units, modsub, blake3_hash};
-use super::depend::{short_depend_random, long_mode_random, long_depend, short_depend};
+use super::common::{read_file, to_units, modsub, blake3_hash};
+use super::depend::{short_depend_random, long_mode_random};
 use super::prover_modify::{create_short_depend, create_long_depend};
 
 use super::postorage_modify::{DATA_L, UNIT_PL, BLOCK_PL, UNIT_L, BLOCK_L};
@@ -43,7 +43,7 @@ pub fn create_challenges(n: usize, range: (usize, usize)) -> Vec<usize> {
     set.into_iter().collect()
 }
 
-pub fn unseal_single_prepare(path: &str, idx_begin: usize, idx_end: usize, mode_l: usize, cnt_l: usize, mode_s: usize, cnt_s: usize) 
+pub fn unseal_single_prepare(path: &str, idx_begin: usize, idx_end: usize) 
 -> (Vec<usize>, Vec<Vec<Vec<u8>>>) {
     let mut file = OpenOptions::new()
     .read(true)
@@ -74,7 +74,7 @@ pub fn unseal_single_prepare(path: &str, idx_begin: usize, idx_end: usize, mode_
     (blocks_idx, blocks)
 }
 
-pub fn unseal_single_and_verify(sealed_path: &str, origin_path: &str, seal_rounds: usize, blocks_idx: &Vec<usize>, blocks: &Vec<Vec<Vec<u8>>>, mode_l: usize, cnt_l: usize, mode_s: usize, cnt_s: usize, vde_key: &Integer, vde_rounds: usize, vde_mode: &str, iv: &Vec<u8>, blocks_id: &Vec<Vec<Vec<u8>>>) {
+pub fn unseal_single_and_verify(sealed_path: &str, origin_path: &str, seal_rounds: usize, blocks_idx: &Vec<usize>, blocks: &Vec<Vec<Vec<u8>>>, mode_l: usize, cnt_l: usize, mode_s: usize, cnt_s: usize, vde_key: &Integer, vde_rounds: usize, vde_mode: &str, iv: &Vec<u8>) {
     let mut sealed_file = OpenOptions::new()
     .read(true)
     .write(false)
@@ -105,37 +105,45 @@ pub fn unseal_single_and_verify(sealed_path: &str, origin_path: &str, seal_round
         // 当前二级数据块内容
         let mut cur_block = blocks[i].clone();
 
-        for r in 0..seal_rounds {
-            let round = seal_rounds - 1 - r;
+        let before_block_id = {
+            if idx2 != 0 {
+                let before_block = read_file(&mut sealed_file, (idx2 - 1) * BLOCK_PL, BLOCK_PL);
+                blake3_hash(&before_block)
+            }
+            else {
+                vec![]
+            }
+        };
 
-            let depend_blocks = {
-                let mut res = vec![];
-                if mode_l == 0 {
-                    let cur_idxs_l = {
-                        if idx2 != 0 {
-                            long_mode_random(&blocks_id[round][idx2 - 1], idx2, cnt_l)
-                        }
-                        else {
-                            vec![]
-                        }
-                    };
-
-                    for &idx in &cur_idxs_l {
-                        let buf = read_file(&mut sealed_file, idx * BLOCK_PL, BLOCK_PL);
-                        let ans = to_units(&buf, UNIT_PL);
-                        res.push(ans);
+        let depend_blocks = {
+            let mut res = vec![];
+            if mode_l == 0 {
+                let cur_idxs_l = {
+                    if idx2 == 0 {
+                        vec![]
                     }
-                }
-                else {
-                    for &i in &idxs_l[idx2] {
-                        let buf = read_file(&mut sealed_file, i * BLOCK_PL, BLOCK_PL);  
-                        let ans = to_units(&buf, UNIT_PL);
-                        res.push(ans);
+                    else {
+                        long_mode_random(&before_block_id, idx2, cnt_l)
                     }
-                }
-                res
-            };
+                };
 
+                for &idx in &cur_idxs_l {
+                    let buf = read_file(&mut sealed_file, idx * BLOCK_PL, BLOCK_PL);
+                    let ans = to_units(&buf, UNIT_PL);
+                    res.push(ans);
+                }
+            }
+            else {
+                for &i in &idxs_l[idx2] {
+                    let buf = read_file(&mut sealed_file, i * BLOCK_PL, BLOCK_PL);  
+                    let ans = to_units(&buf, UNIT_PL);
+                    res.push(ans);
+                }
+            }
+            res
+        };
+
+        for _ in 0..seal_rounds {
             for j in 0..cur_block.len() {
                 let idx1 = cur_block.len() - 1 - j;
 
@@ -171,7 +179,7 @@ pub fn unseal_single_and_verify(sealed_path: &str, origin_path: &str, seal_round
                         depend_data.append(&mut iv.clone());
                     }
                     else {
-                        depend_data.append(&mut blocks_id[round][idx2 - 1].clone());
+                        depend_data.append(&mut before_block_id.clone());
                     }
                 }
 

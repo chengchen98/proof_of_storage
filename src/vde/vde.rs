@@ -1,8 +1,8 @@
 use num_bigint::{BigInt, Sign};
 use super::sloth::{sloth, sloth_inv};
-use crate::proof_of_storage::postorage::L0;
+use crate::proof_of_storage::postorage_modify::UNIT_L;
 
-pub const STEP: usize = L0 + 1;
+pub const STEP: usize = UNIT_L + 1;
 
 pub fn single_vde(x: &BigInt, p: &BigInt, t: usize, mode: &str) -> BigInt {
     if mode == "sloth" {
