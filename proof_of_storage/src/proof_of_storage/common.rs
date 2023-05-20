@@ -1,11 +1,11 @@
-use std::fs::{File, OpenOptions};
-use std::io::{Seek, Read, SeekFrom, Write};
-use std::path::PathBuf;
+use std::fs::File;
+use std::io::{Seek, Read, SeekFrom};
 use md5::{Md5, Digest};
-use rand::Rng;
 use rug::Integer;
 use rug::integer::Order;
 use blake3;
+
+use super::postorage::PosPara;
 
 pub const HASH_RES_DIR: [&str; 4] = [r"src", "proof_of_storage", "data", "hash"];
 
@@ -26,6 +26,10 @@ pub fn blake3_hash(message: &Vec<u8>) -> Vec<u8> {
 #[test]
 fn test() {
     use std::time::Instant;
+    use rand::Rng;
+    use std::path::PathBuf;
+    use std::fs::OpenOptions;
+    use std::io::Write;
 
     let path: PathBuf = HASH_RES_DIR.iter().collect();
     let path = path.to_str().unwrap();
@@ -138,4 +142,110 @@ pub fn modsub(left: &Vec<u8>, right: &Vec<u8>, p: &Integer) -> Vec<u8> {
     let mut res = res_int.to_digits::<u8>(Order::Lsf);
     res.append(&mut vec![0u8; left.len() - res.len()]);
     res
+}
+
+pub fn gen_posdata(l: usize) -> PosPara {
+    let params = {
+        if l == 1 {
+            PosPara {
+                data_l: 63 * 16 * 1024 * 1,
+        
+                unit_l: 63,
+                block_l: 63 * 64,
+                big_block_l: 63 * 128 * 128,
+            
+                unit_pl: 64,
+                block_pl: 64 * 64,
+                big_block_pl: 64 * 128 * 128,
+            
+                seal_rounds: 2,
+                vde_rounds: 10,
+                vde_mode: "sloth".to_string(),
+        
+                mode_l: 0,
+                mode_s: 0,
+        
+                cnt_l: 0,
+                cnt_s: 10,
+            
+                leaves_to_prove_count: 3,
+            }
+        }
+        else if l == 4 {
+            PosPara {
+                data_l: 63 * 16 * 1024 * 4,
+        
+                unit_l: 63,
+                block_l: 63 * 256,
+                big_block_l: 63 * 128 * 128,
+            
+                unit_pl: 64,
+                block_pl: 64 * 256,
+                big_block_pl: 64 * 128 * 128,
+            
+                seal_rounds: 2,
+                vde_rounds: 10,
+                vde_mode: "sloth".to_string(),
+        
+                mode_l: 0,
+                mode_s: 0,
+        
+                cnt_l: 0,
+                cnt_s: 10,
+            
+                leaves_to_prove_count: 3,
+            }
+        }
+        else if l == 16 {
+            PosPara {
+                data_l: 63 * 16 * 1024 * 16,
+        
+                unit_l: 63,
+                block_l: 63 * 1024,
+                big_block_l: 63 * 128 * 128,
+            
+                unit_pl: 64,
+                block_pl: 64 * 1024,
+                big_block_pl: 64 * 128 * 128,
+            
+                seal_rounds: 2,
+                vde_rounds: 10,
+                vde_mode: "sloth".to_string(),
+        
+                mode_l: 0,
+                mode_s: 0,
+        
+                cnt_l: 0,
+                cnt_s: 10,
+            
+                leaves_to_prove_count: 3,
+            }
+        }
+        else {
+            PosPara {
+                data_l: 63 * 16 * 1024 * 64,
+        
+                unit_l: 63,
+                block_l: 63 * 4 * 1024,
+                big_block_l: 63 * 128 * 128,
+            
+                unit_pl: 64,
+                block_pl: 64 * 4 * 1024,
+                big_block_pl: 64 * 128 * 128,
+            
+                seal_rounds: 2,
+                vde_rounds: 10,
+                vde_mode: "sloth".to_string(),
+        
+                mode_l: 0,
+                mode_s: 0,
+        
+                cnt_l: 0,
+                cnt_s: 10,
+            
+                leaves_to_prove_count: 3,
+            }
+        }
+    };
+    params
 }

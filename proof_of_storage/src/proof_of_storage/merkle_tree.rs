@@ -30,7 +30,7 @@ pub fn generate_merkle_tree_from_data(leaf_values: &Vec<Vec<u8>>) -> (Vec<[u8; 3
     (leaves, merkle_tree, merkle_root)
 }
 
-pub fn generate_merkle_proof(indices_to_prove: &[usize], merkle_tree: MerkleTree<Sha256>) -> MerkleProof<Sha256> {
+pub fn generate_merkle_proof(indices_to_prove: &[usize], merkle_tree: &MerkleTree<Sha256>) -> MerkleProof<Sha256> {
     let merkle_proof = merkle_tree.proof(&indices_to_prove);
     let proof_bytes = merkle_proof.to_bytes();
     let proof = MerkleProof::<Sha256>::try_from(proof_bytes).unwrap();
@@ -94,7 +94,7 @@ pub fn test(){
         let indices_to_prove = create_challenges(COUNT, (0, leaves.len()));
         
         let start = Instant::now();
-        let proof = generate_merkle_proof(&indices_to_prove, merkle_tree);
+        let proof = generate_merkle_proof(&indices_to_prove, &merkle_tree);
         t2 += start.elapsed().as_secs_f32();
 
         let start = Instant::now();

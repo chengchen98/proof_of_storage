@@ -3,9 +3,8 @@ use std::{fs::OpenOptions, io::{Write, Seek, SeekFrom}, time::Instant};
 
 use crate::{vde::rug_vde::{vde, vde_inv}};
 
-use super::depend::{long_depend, short_depend, short_depend_random, long_mode_random};
+use super::{depend::{long_depend, short_depend, short_depend_random, long_mode_random}, postorage::PosPara};
 use super::common::{read_file, to_units, com_units, modadd, modsub, blake3_hash};
-use super::postorage::{DATA_L, UNIT_L, UNIT_PL, BLOCK_L, BLOCK_PL};
 
 pub fn create_long_depend(num: usize, count: usize, mode: usize) -> Vec<Vec<usize>> {
     let mut indices = vec![];
@@ -25,7 +24,7 @@ pub fn create_short_depend(num: usize, count: usize, mode: usize) -> Vec<Vec<usi
     indices
 }
 
-pub fn copy_and_pad(origin_path: &str, new_path: &str) {
+pub fn copy_and_pad(origin_path: &str, new_path: &str, data_l: usize, unit_l: usize) {
     //! 将原始文件按照 L1 大小逐个pad（在高位添加一个 0），再存储到新文件
     let mut origin_file = OpenOptions::new()
     .read(true)
@@ -40,16 +39,15 @@ pub fn copy_and_pad(origin_path: &str, new_path: &str) {
     .open(new_path)
     .unwrap();
 
-    let block_cnt = DATA_L / UNIT_L;
+    let block_cnt = data_l / unit_l;
     for cnt in 0..block_cnt {
-        let mut buf = read_file(&mut origin_file, cnt * UNIT_L, UNIT_L);
+        let mut buf = read_file(&mut origin_file, cnt * unit_l, unit_l);
         buf.push(0);
         new_file.write_all(&buf).unwrap();
     }
 }
 
-pub fn seal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_s: usize, cnt_s: usize, vde_key: &Integer, iv: &Vec<u8>, vde_rounds: usize, vde_mode: &str) 
--> (Vec<Vec<u8>>, f32, f32, f32, f32, f32, f32) {
+pub fn seal(params: &PosPara, path: &str, vde_key: &Integer, iv: &Vec<u8>) -> (Vec<Vec<u8>>, f32, f32, f32, f32, f32, f32) {
     let mut file = OpenOptions::new()
     .read(true)
     .write(true)
@@ -64,21 +62,21 @@ pub fn seal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_s:
     let mut modadd_cost = 0.0;
 
     // block_cnt: 二级数据块个数
-    let block_cnt = DATA_L / BLOCK_L;
+    let block_cnt = params.data_l / params.block_l;
     let mut blocks_id = vec![vec![]; block_cnt];
 
     let start = Instant::now();
     let idxs_l = {
-        if mode_l != 0 {
-            create_long_depend(DATA_L / BLOCK_L, cnt_l, mode_l)
+        if params.mode_l != 0 {
+            create_long_depend(block_cnt, params.cnt_l, params.mode_l)
         }
         else {
             vec![]
         }
     };
     let idxs_s = {
-        if mode_s != 0 {
-            create_short_depend(BLOCK_L / UNIT_L, cnt_s, mode_s)
+        if params.mode_s != 0 {
+            create_short_depend(block_cnt, params.cnt_s, params.mode_s)
         }
         else {
             vec![]
@@ -86,23 +84,25 @@ pub fn seal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_s:
     };
     depend_cost += start.elapsed().as_secs_f32();
 
-        // 逐个封装二级数据块
+    // 逐个封装二级数据块
     for idx2 in 0..block_cnt {
         let mut cur_block = {
             let start = Instant::now();
-            let buf = read_file(&mut file, idx2 * BLOCK_PL, BLOCK_PL);
+            let buf = read_file(&mut file, idx2 * params.block_pl, params.block_pl);
             file_cost += start.elapsed().as_secs_f32();
 
             let start = Instant::now();
-            let block = to_units(&buf, UNIT_PL);
+            let block = to_units(&buf, params.unit_pl);
             block_cost += start.elapsed().as_secs_f32();
             block
         };
 
+        let unit_cnt = cur_block.len();
+
         // 当前二级数据块长程依赖的二级数据块集合
         let depend_blocks = {
             let mut res = vec![];
-            if mode_l == 0 {
+            if params.mode_l == 0 {
                 // let before_unit = {
                 //     if idx2 != 0 {
                 //         let start = Instant::now();
@@ -123,18 +123,23 @@ pub fn seal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_s:
                         vec![]
                     }
                     else {
-                        long_mode_random(&blocks_id[idx2 - 1], idx2, cnt_l)
+                        if params.cnt_l == 0 {
+                            long_mode_random(block_cnt, &blocks_id[idx2 - 1], idx2, idx2 / 10 + 1)
+                        }
+                        else {
+                            long_mode_random(block_cnt, &blocks_id[idx2 - 1], idx2, params.cnt_l)
+                        }
                     }
                 };
                 depend_cost += start.elapsed().as_secs_f32();
 
                 for &i in &cur_idxs_l {
                     let start = Instant::now();
-                    let buf = read_file(&mut file, i * BLOCK_PL, BLOCK_PL);
+                    let buf = read_file(&mut file, i * params.block_pl, params.block_pl);
                     file_cost += start.elapsed().as_secs_f32();
 
                     let start = Instant::now();
-                    let ans = to_units(&buf, UNIT_PL);
+                    let ans = to_units(&buf, params.unit_pl);
                     block_cost += start.elapsed().as_secs_f32();
 
                     res.push(ans);
@@ -143,11 +148,11 @@ pub fn seal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_s:
             else {
                 for &i in &idxs_l[idx2] {
                     let start = Instant::now();
-                    let buf = read_file(&mut file, i * BLOCK_PL, BLOCK_PL);
+                    let buf = read_file(&mut file, i * params.block_pl, params.block_pl);
                     file_cost += start.elapsed().as_secs_f32();
 
                     let start = Instant::now();
-                    let ans = to_units(&buf, UNIT_PL);
+                    let ans = to_units(&buf, params.unit_pl);
                     block_cost += start.elapsed().as_secs_f32();
 
                     res.push(ans);
@@ -157,16 +162,16 @@ pub fn seal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_s:
         };
 
         // 封装seal_rounds轮
-        for _ in 0..seal_rounds {
+        for _ in 0..params.seal_rounds {
             // 对当前二级数据块中的一级数据块逐个封装
-            for idx1 in 0..cur_block.len() {
+            for idx1 in 0..unit_cnt {
                 let mut depend_data = {
                     let mut res = vec![];
                     for i in 0..depend_blocks.len() {
                         res.append(&mut depend_blocks[i][idx1].clone());
                     }
 
-                    if mode_s != 0 {
+                    if params.mode_s != 0 {
                         for &idx in &idxs_s[idx1] {
                             res.append(&mut cur_block[idx].clone());
                         }
@@ -175,10 +180,10 @@ pub fn seal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_s:
                         let start = Instant::now();
                         let ans = {
                             if idx1 == 0 {
-                                short_depend_random(BLOCK_L / UNIT_L, &vec![], idx1, cnt_s)
+                                short_depend_random(unit_cnt, &vec![], idx1, params.cnt_s)
                             }
                             else {
-                                short_depend_random(BLOCK_L / UNIT_L, &cur_block[idx1-1], idx1, cnt_s)
+                                short_depend_random(unit_cnt, &cur_block[idx1-1], idx1, params.cnt_s)
                             }
                         };
                         depend_cost += start.elapsed().as_secs_f32();
@@ -214,7 +219,7 @@ pub fn seal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_s:
 
                 // 将异或结果带入vde计算得到new_unit
                 let start = Instant::now();
-                let new_unit = vde(&unit_modadd, &vde_key, vde_rounds, vde_mode, UNIT_PL);
+                let new_unit = vde(&unit_modadd, &vde_key, params.vde_rounds, &params.vde_mode, params.unit_pl);
                 vde_cost += start.elapsed().as_secs_f32();
 
                 // 更新unit的值
@@ -231,7 +236,7 @@ pub fn seal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_s:
         hash_cost += start.elapsed().as_secs_f32();
 
         let start = Instant::now();
-        file.seek(SeekFrom::Start((idx2 * BLOCK_PL).try_into().unwrap())).unwrap();
+        file.seek(SeekFrom::Start((idx2 * params.block_pl).try_into().unwrap())).unwrap();
         file.write_all(&cur_block).unwrap();
         file_cost += start.elapsed().as_secs_f32();
     }
@@ -239,7 +244,7 @@ pub fn seal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_s:
     (blocks_id, vde_cost, file_cost, depend_cost, hash_cost, block_cost, modadd_cost)
 }
 
-pub fn copy_and_compress(origin_path: &str, new_path: &str) {
+pub fn copy_and_compress(origin_path: &str, new_path: &str, data_l: usize, unit_l: usize, unit_pl: usize) {
     let mut origin_file = OpenOptions::new()
     .read(true)
     .open(origin_path)
@@ -253,14 +258,14 @@ pub fn copy_and_compress(origin_path: &str, new_path: &str) {
     .open(new_path)
     .unwrap();
 
-    let block_cnt = DATA_L / UNIT_L;
+    let block_cnt = data_l / unit_l;
     for cnt in 0..block_cnt {
-        let buf = read_file(&mut origin_file, cnt * UNIT_PL, UNIT_PL);
-        new_file.write_all(&buf[0..UNIT_L]).unwrap();
+        let buf = read_file(&mut origin_file, cnt * unit_pl, unit_pl);
+        new_file.write_all(&buf[0..unit_l]).unwrap();
     }
 }
 
-pub fn unseal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_s: usize, cnt_s: usize, vde_key: &Integer, iv: &Vec<u8>, vde_rounds: usize, vde_mode: &str) 
+pub fn unseal(params: &PosPara, path: &str, vde_key: &Integer, iv: &Vec<u8>) 
 -> (f32, f32, f32, f32, f32, f32) {
     let mut file = OpenOptions::new()
     .read(true)
@@ -275,20 +280,20 @@ pub fn unseal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_
     let mut block_cost = 0.0;
     let mut modsub_cost = 0.0;
 
-    let block_cnt = DATA_L / BLOCK_L;
+    let block_cnt = params.data_l / params.block_l;
 
     let start = Instant::now();
     let idxs_l = {
-        if mode_l != 0 {
-            create_long_depend(DATA_L / BLOCK_L, cnt_l, mode_l)
+        if params.mode_l != 0 {
+            create_long_depend(block_cnt, params.cnt_l, params.mode_l)
         }
         else {
             vec![]
         }
     };
     let idxs_s = {
-        if mode_s != 0 {
-            create_short_depend(BLOCK_L / UNIT_L, cnt_s, mode_s)
+        if params.mode_s != 0 {
+            create_short_depend(block_cnt, params.cnt_s, params.mode_s)
         }
         else {
             vec![]
@@ -303,7 +308,7 @@ pub fn unseal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_
             if idx2 != 0 {
                 let before_block = {
                     let start = Instant::now();
-                    let block = read_file(&mut file, (idx2 - 1) * BLOCK_PL, BLOCK_PL);
+                    let block = read_file(&mut file, (idx2 - 1) * params.block_pl, params.block_pl);
                     file_cost += start.elapsed().as_secs_f32();
                     block
                 };
@@ -316,18 +321,20 @@ pub fn unseal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_
 
         let mut cur_block = {
             let start = Instant::now();
-            let buf = read_file(&mut file, idx2 * BLOCK_PL, BLOCK_PL);
+            let buf = read_file(&mut file, idx2 * params.block_pl, params.block_pl);
             file_cost += start.elapsed().as_secs_f32();
             
             let start = Instant::now();
-            let block = to_units(&buf, UNIT_PL);
+            let block = to_units(&buf, params.unit_pl);
             block_cost += start.elapsed().as_secs_f32();
             block
         };
 
+        let unit_cnt = cur_block.len();
+
         let depend_blocks = {
             let mut res = vec![];
-            if mode_l == 0 {
+            if params.mode_l == 0 {
                 // let before_unit = {
                 //     if idx2 != 0 {
                 //         let start = Instant::now();
@@ -342,25 +349,29 @@ pub fn unseal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_
                 // let start = Instant::now();
                 // let cur_idxs_l = long_mode_random(&before_unit, idx2, cnt_l);
                 // depend_cost += start.elapsed().as_secs_f32();
+                let start = Instant::now();
                 let cur_idxs_l = {
                     if idx2 == 0 {
                         vec![]
                     }
                     else {
-                        let start = Instant::now();
-                        let res = long_mode_random(&before_block_id, idx2, cnt_l);
-                        depend_cost += start.elapsed().as_secs_f32();
-                        res
+                        if params.cnt_l == 0 {
+                            long_mode_random(block_cnt, &before_block_id, idx2, idx2 / 10 + 1)
+                        }
+                        else {
+                            long_mode_random(block_cnt, &before_block_id, idx2, params.cnt_l)
+                        }
                     }
                 };
+                depend_cost += start.elapsed().as_secs_f32();
 
                 for i in 0..cur_idxs_l.len() {
                     let start = Instant::now();
-                    let buf = read_file(&mut file, cur_idxs_l[i] * BLOCK_PL, BLOCK_PL);
+                    let buf = read_file(&mut file, cur_idxs_l[i] * params.block_pl, params.block_pl);
                     file_cost += start.elapsed().as_secs_f32();
 
                     let start = Instant::now();
-                    let ans = to_units(&buf, UNIT_PL);
+                    let ans = to_units(&buf, params.unit_pl);
                     block_cost += start.elapsed().as_secs_f32();
 
                     res.push(ans);
@@ -369,11 +380,11 @@ pub fn unseal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_
             else {
                 for i in 0..idxs_l[idx2].len() {
                     let start = Instant::now();
-                    let buf = read_file(&mut file, i * BLOCK_PL, BLOCK_PL);
+                    let buf = read_file(&mut file, i * params.block_pl, params.block_pl);
                     file_cost += start.elapsed().as_secs_f32();
 
                     let start = Instant::now();
-                    let ans = to_units(&buf, UNIT_PL);
+                    let ans = to_units(&buf, params.unit_pl);
                     block_cost += start.elapsed().as_secs_f32();
 
                     res.push(ans);
@@ -382,17 +393,17 @@ pub fn unseal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_
             res
         };
 
-        for _ in 0..seal_rounds {
+        for _ in 0..params.seal_rounds {
 
-            for j in 0..cur_block.len() {
-                let idx1 = cur_block.len() - 1 - j;
+            for j in 0..unit_cnt {
+                let idx1 = unit_cnt - 1 - j;
 
                 let mut depend_data = {
                     let mut res = vec![];
                     for i in 0..depend_blocks.len() {
                         res.append(&mut depend_blocks[i][idx1].clone());
                     }
-                    if mode_s != 0 {
+                    if params.mode_s != 0 {
                         for &idx in &idxs_s[idx1] {
                             res.append(&mut cur_block[idx].clone());
                         }
@@ -401,10 +412,10 @@ pub fn unseal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_
                         let start = Instant::now();
                         let ans = {
                             if idx1 == 0 {
-                                short_depend_random(BLOCK_L / UNIT_L, &vec![], idx1, cnt_s)
+                                short_depend_random(unit_cnt, &vec![], idx1, params.cnt_s)
                             }
                             else {
-                                short_depend_random(BLOCK_L / UNIT_L, &cur_block[idx1-1], idx1, cnt_s)
+                                short_depend_random(unit_cnt, &cur_block[idx1-1], idx1, params.cnt_s)
                             }
                         };
                         depend_cost += start.elapsed().as_secs_f32();
@@ -432,7 +443,7 @@ pub fn unseal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_
                 let cur_unit = &cur_block[idx1].to_vec();
 
                 let start = Instant::now();
-                let vde_inv_res = vde_inv(&cur_unit, &vde_key, vde_rounds, vde_mode, UNIT_PL);
+                let vde_inv_res = vde_inv(&cur_unit, &vde_key, params.vde_rounds, &params.vde_mode, params.unit_pl);
                 vde_cost += start.elapsed().as_secs_f32();
 
                 let start = Instant::now();
@@ -452,7 +463,7 @@ pub fn unseal(path: &str, seal_rounds: usize, mode_l: usize, cnt_l: usize, mode_
         // hash_cost += start.elapsed().as_secs_f32();
 
         let start = Instant::now();
-        file.seek(SeekFrom::Start((idx2 * BLOCK_PL).try_into().unwrap())).unwrap();
+        file.seek(SeekFrom::Start((idx2 * params.block_pl).try_into().unwrap())).unwrap();
         file.write_all(&cur_block).unwrap();
         file_cost += start.elapsed().as_secs_f32();
     }

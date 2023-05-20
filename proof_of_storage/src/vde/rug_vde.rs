@@ -1,7 +1,7 @@
 use rug::{Integer, integer::Order};
 use super::rug_sloth::{sloth, sloth_inv};
 
-pub fn vde(x: &Vec<u8>, p: &Integer, t: usize, mode: &str, l: usize) -> Vec<u8> {
+pub fn vde(x: &Vec<u8>, p: &Integer, t: usize, mode: &String, l: usize) -> Vec<u8> {
     let cur_x = Integer::from_digits(&x, Order::Lsf);
     let y;
     if mode == "sloth" {
@@ -18,7 +18,7 @@ pub fn vde(x: &Vec<u8>, p: &Integer, t: usize, mode: &str, l: usize) -> Vec<u8> 
     y_bytes
 }
 
-pub fn vde_inv(y: &Vec<u8>, p: &Integer, t: usize, mode: &str, l: usize) -> Vec<u8> {
+pub fn vde_inv(y: &Vec<u8>, p: &Integer, t: usize, mode: &String, l: usize) -> Vec<u8> {
     let cur_y = Integer::from_digits(&y, Order::Lsf);
     let x;
 
@@ -51,12 +51,12 @@ fn test_vde() {
         println!("sample: {:?}", i);
         
         let start = Instant::now();
-        let y = vde(&x, p, T, "sloth", 1024/8);
+        let y = vde(&x, p, T, &"sloth".to_string(), 1024/8);
         let cost1 = start.elapsed();
         println!("Vde: {:?}", cost1);
 
         let start = Instant::now();
-        let z = vde_inv(&y, p, T, "sloth", 1024/8);
+        let z = vde_inv(&y, p, T, &"sloth".to_string(), 1024/8);
         let cost2 = start.elapsed();
         println!("Vde inv: {:?}", cost2);
 

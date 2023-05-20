@@ -40,62 +40,38 @@ pub fn prepare_params() -> (Vec<Fr>, Vec<Fr>, Fr, Fr) {
 
 pub fn pospace(path: &str, df_constants: Vec<Fr>, hash_constants: Vec<Fr>, key: Fr, m: Fr, save_file: &mut File) {
     // 先划分一定大小的存储空间，并用0填满
-    print!("Prepare storage...");
-    io::stdout().flush().unwrap();
     let start = Instant::now();
     prepare_space(&path, N).unwrap();
     let cost1 = start.elapsed();
-    print!("Ok...{:?}\n", cost1);
 
     // 通过计算延迟函数标定存储空间
-    print!("Create pospace...");
-    io::stdout().flush().unwrap();
     let start = Instant::now();
     let (df_cost, file_cost) = mark_space(&path, key, m, &df_constants, N);
     let cost2 = start.elapsed();
-    print!("Ok...{:?}\n", cost2);
 
     // 验证者随机生成挑战
-    print!("Create challenges...");
-    io::stdout().flush().unwrap();
     let start = Instant::now();
     let challenges = create_challenges(CHALLENGE_COUNT, N);
     let cost3 = start.elapsed();
-    print!("Ok...{:?}\n", cost3);
 
-    // 第一次应答：
-    print!("--Response 1...");
-    io::stdout().flush().unwrap();
+    // 第一次应答
     let start = Instant::now();
     let (x_response, idx_response, x_hash_response) = response_1(&path, &challenges, key, &hash_constants, N);
     let cost4 = start.elapsed();
-    // assert_eq!(x_response.len(), RESPONSE_COUNT);
-    print!("Ok...{:?}\n", cost4);
-
-    // 计算成功率
-    println!("--Success rate: {:?} / {:?}", idx_response.len(), RESPONSE_COUNT);
 
     // 第二次应答：生成零知识证明
-    print!("--Response 2 (create params)...");
-    io::stdout().flush().unwrap();
     let start = Instant::now();
     let params = construct_circuit(&df_constants, &hash_constants);
     let cost5 = start.elapsed();
-    print!("Ok...{:?}\n", cost5);
 
-    print!("--Response 2 (create proof)..");
     let start = Instant::now();
     let (pvk, proof) = response_2(params, key, &x_response, m,  &df_constants,  &challenges, &idx_response, x_hash_response, &hash_constants);
     let cost6 = start.elapsed();
-    print!("Ok...{:?}\n", cost6);
     
     // 验证
-    print!("Verify...");
-    io::stdout().flush().unwrap();
     let start = Instant::now();
     verify(pvk, proof, key, m, &challenges, &idx_response, x_hash_response);
     let cost7 = start.elapsed();
-    print!("Ok...{:?}\n", cost7);
 
     save_file.write_all(["N, ", &N.to_string(), ", data len (byte), ", &((N + 1) * 2_usize.pow(N.try_into().unwrap()) / 8).to_string(), ", vde round, ", &MIMC5_DF_ROUNDS.to_string(), "\n"].concat().as_bytes()).unwrap();
     save_file.write_all(["challenge count, ", &CHALLENGE_COUNT.to_string(), ", response count, ", &RESPONSE_COUNT.to_string(), ", success rate, ", &idx_response.len().to_string(), "/", &RESPONSE_COUNT.to_string(), "\n"].concat().as_bytes()).unwrap();
@@ -107,8 +83,7 @@ pub fn pospace(path: &str, df_constants: Vec<Fr>, hash_constants: Vec<Fr>, key: 
     save_file.write_all(["[P] -- Response 1 (return index and hash), ", &cost4.as_secs_f32().to_string(), "\n"].concat().as_bytes()).unwrap();
     save_file.write_all(["[P] -- Response 2 (create params), ", &cost5.as_secs_f32().to_string(), "\n"].concat().as_bytes()).unwrap();
     save_file.write_all(["[P] -- Response 2 (create proof), ", &cost6.as_secs_f32().to_string(), "\n"].concat().as_bytes()).unwrap();
-    save_file.write_all(["[V] Verify, ", &cost7.as_secs_f32().to_string(), "\n"].concat().as_bytes()).unwrap();
-    save_file.write_all("\n".as_bytes()).unwrap();
+    save_file.write_all(["[V] Verify, ", &cost7.as_secs_f32().to_string(), "\n\n"].concat().as_bytes()).unwrap();
 }
 
 pub fn test_pospace() {

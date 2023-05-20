@@ -1,5 +1,5 @@
 pub struct Message {
-    pub size: usize
+    pub size: usize,
 }
 
 pub struct CryptoBulletin<'a> {
@@ -10,3 +10,4 @@ pub struct CryptoBulletin<'a> {
     pub message: Message,
     pub signature: &'a str
 }
+

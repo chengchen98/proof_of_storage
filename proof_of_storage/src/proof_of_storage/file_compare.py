@@ -1,5 +1,5 @@
-FILE_A = "src/proof_of_storage/data/origin_data"
-FILE_B = "src/proof_of_storage/data/unsealed_data"
+FILE_A = "proof_of_storage/src/proof_of_storage/data/origin_data"
+FILE_B = "proof_of_storage/src/proof_of_storage/data/unsealed_data"
 
 SHOULD_PRINT_POS = False
 
