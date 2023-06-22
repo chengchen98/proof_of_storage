@@ -46,5 +46,3 @@ for _ in range(SAMPLES):
 f = open("src/vde/data/modpow", 'a')
 f.write("p size, " + str(P_BITS) + ", samples, " + str(SAMPLES) + ", python, " + str(time_total / SAMPLES) + "\n\n")
 f.close()
-
-# 0.003

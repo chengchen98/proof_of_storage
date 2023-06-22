@@ -24,33 +24,6 @@ pub const RUN_DATA_DIR: [&str; 4] = [r"src", "proof_of_storage", "data", "pos_re
 pub const STAT_DATA_DIR: [&str; 4] = [r"src", "proof_of_storage", "data", "pos_result_stat.csv"];
 pub const TARGET_DIR: [&str; 4] = [r"src", "proof_of_storage", "data", "target"];
 
-// // 单位：byte
-// pub const DATA_L: usize = 63 * 16 * 16 * 1024; // 16MB
-// pub const DATA_PL: usize = 64 * 16 * 16 * 1024;
-
-// pub const UNIT_L: usize = 63;
-// pub const BLOCK_L: usize = UNIT_L * 128;
-// pub const BIG_BLOCK_L: usize = BLOCK_L * 128;
-
-// pub const UNIT_PL: usize = UNIT_L + 1;
-// pub const BLOCK_PL: usize = UNIT_PL * 128;
-// pub const BIG_BLOCK_PL: usize = BLOCK_PL * 128;
-
-// pub const SEAL_ROUNDS: usize = 2;
-// pub const VDE_ROUNDS: usize = 10;
-// pub const VDE_MODE: &str = "sloth";
-
-// // mode = 0: 随机性依赖关系，由计算哈希函数得到
-// // mode > 0: 确定性依赖关系
-// pub const MODE_L: usize = 0;
-// pub const MODE_S: usize = 0;
-// // CNT_L = 0: 表示长程依赖个数 = idx % 10 + 1
-// // CNT_L > 0: 表示长程依赖个数固定
-// pub const CNT_L: usize = 0;
-// pub const CNT_S: usize = 5;
-
-// pub const LEAVES_TO_PROVE_COUNT: usize = 3;
-
 #[derive(Clone)] 
 pub struct PosPara {
     pub data_l: usize,
@@ -67,7 +40,12 @@ pub struct PosPara {
     pub vde_rounds: usize,
     pub vde_mode: String,
 
+    // mode = 0: 随机性依赖关系，由计算哈希函数得到
+    // mode > 0: 确定性依赖关系
     pub mode_l: usize,
+
+    // cnt_l = 0: 表示长程依赖个数 = idx / 10 + 1
+    // cnt_l > 0: 表示长程依赖个数固定
     pub cnt_l: usize,
 
     pub mode_s: usize,
@@ -108,7 +86,7 @@ pub fn load_data(path: &str) -> (Integer, Vec<u8>) {
 }
 
 pub fn prepare_params(unit_pl: usize) -> (Integer, Vec<u8>) {
-    // 生成vde需要的key
+    // 生成vde需要的key和封装iv
     let vde_key = {
         if unit_pl * 8 == 512 {
             Integer::from_str(P_512).unwrap()
@@ -138,7 +116,6 @@ pub fn prepare_params(unit_pl: usize) -> (Integer, Vec<u8>) {
 }
 
 pub fn seal_and_unseal(params: &PosPara, origin_path: &str, sealed_path: &str, unsealed_path: &str, pubdata_path: &str, run_data_file: &mut File, should_save_run_data: bool, should_unseal: bool, stat_data_file: &mut File) {
-    
     copy_and_pad(origin_path, sealed_path, params.data_l, params.unit_l);
 
     // params
@@ -275,6 +252,7 @@ pub fn test_postorage(params: PosPara, should_save_run_data: bool, should_seal: 
 fn test() {
     let should_save_run_data = false;
 
+    // 参数设置
     // 原地 unseal
     // seal = true, unseal = true, else = false, run
 
@@ -295,6 +273,7 @@ fn test() {
 
 #[test]
 fn test_pipeline() {
+    // 原始数据
     let origin_path: PathBuf = ORIGIN_DATA_DIR.iter().collect();
     let origin_path = origin_path.to_str().unwrap();
 
@@ -319,7 +298,7 @@ fn test_pipeline() {
     .append(true)
     .create(true) 
     .open(run_data_path)
-    .unwrap();
+    .unwrap(); 
 
     // let stat_data_path: PathBuf = STAT_DATA_DIR.iter().collect();
     // let stat_data_path = stat_data_path.to_str().unwrap();
@@ -330,14 +309,12 @@ fn test_pipeline() {
     // .create(true) 
     // .open(stat_data_path)
     // .unwrap();
-    
 
     // 预先设定参数
-    let params = gen_posdata(4);
+    let params = gen_posdata(16);
     let parallel_num = 10;
     let challenges = 10;
     let challenge_single_count = 10;
-
 
     // 创建指定长度的原始文件
     create_random_file(origin_path, params.data_l).unwrap();
@@ -397,7 +374,7 @@ fn test_pipeline() {
         // 证明者：第二次响应，同时将 挑战的叶子结点的验证路径 发送给验证者
         let start = Instant::now();
         let proof = generate_merkle_proof(&indices_to_prove, &sealed_merkle_tree);
-        run_data_file.write_all(["[P] Response 2 (create proof): ", &start.elapsed().as_secs_f32().to_string(), "\n"].concat().as_bytes()).unwrap();
+        run_data_file.write_all(["[P] Response 2 (create merkle proof): ", &start.elapsed().as_secs_f32().to_string(), "\n"].concat().as_bytes()).unwrap();
     
         // 验证者：验证 response_data_hash_p 的正确性
         let start = Instant::now();
